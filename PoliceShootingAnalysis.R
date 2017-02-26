@@ -7,19 +7,29 @@ suppressMessages({
   library(ggplot2)
   library(ggthemes)
   library(purrr)
+  library(randomForest)
+  library(bnlearn)
+  library(arules)
+  library(RWeka)
+  library(caret)
+  library(e1071)
+  library(mlbench)
 })
 
-# Read in the CSV file
+
+##     Loading & Processing Data     #############################################
+
+
+# read in the CSV file
 shootings <- read_delim("fatal-police-shootings-data.csv", delim=',', progress=F)
 shootings %>% glimpse
 
-# Factor variables except for date and age
-shootings[] <- lapply(shootings, factor)
+# factor variables except for date and age
+# shootings[] <- lapply(shootings, factor)
 shootings$date  <- ymd(shootings$date)
-shootings$age <- as.numeric(shootings$age)
 shootings %>% glimpse
 
-# Check for NAs
+# check for NAs
 sum(is.na(shootings)) # 207 NAs
 shootings %>%
   summarise_each(funs(sum(is.na(.))))
@@ -27,26 +37,26 @@ shootings %>%
 # <int> <int> <int>           <int> <int> <int>  <int> <int> <int> <int>                   <int>        <int> <int>       <int>
 #     0     0     0               0     7    46      1   116     0     0                       0            0    37           0
 
-# Inspect DF with complete cases
+# inspect DF with complete cases
 shootings_complete <- shootings[complete.cases(shootings), ] 
 shootings_complete %>% glimpse # 1,959 cases from 2,126
 
-# Separate cases between 2015 and 2016 (1820 total cases)
+# separate cases between 2015 and 2016 (1820 total cases)
 shootings_complete %>%
   filter(year(date) == 2015) -> shootings2015 # 947 obs
-shootings2015 %>%
-  summarise_each(funs(sum(is.na(.))))
+shootings2015 %>% glimpse
 
 shootings_complete %>%
   filter(year(date) == 2016) -> shootings2016 # 873 obs
-shootings2016 %>%
-  summarise_each(funs(sum(is.na(.))))
+shootings2016 %>% glimpse
 
 # Cases for 2017
 shootings_complete %>%
   filter(year(date) == 2017) -> shootings2017 # 139 obs
 
-# Descriptive Insights
+
+##     Descriptive Insights     #############################################
+
 
 # Gender
 shootings_complete %>%
@@ -128,6 +138,10 @@ ggplot(shootings_armed %>% filter(count > 5), aes(x=armed, y=count)) +
   labs(list(x="Count", title="Shootings by Armed Status")) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
+
+##     Functions for Reducing Dimensions    #############################################
+
+# places age variables into 5 bins
 bin_age <- function(age_vector) {
   age_vector %>%
     map_chr(function(age) {
@@ -148,6 +162,7 @@ bin_age <- function(age_vector) {
     factor
 }
 
+# places armed variables into 8 bins
 bin_armed <- function(armed_vector) {
   armed_vector %>%
     as.character() %>%
@@ -168,7 +183,7 @@ bin_armed <- function(armed_vector) {
         return("other")
       }
       if (armed %in% c("vehicle","motorcycle")) {
-        return("other")
+        return("vehicle")
       }
       if (armed == "unknown weapon") {
         return("undetermined")
@@ -178,6 +193,7 @@ bin_armed <- function(armed_vector) {
     factor
 }
 
+# creates separate column for seasons based on dates 
 getSeason <- function(input.date){
   numeric.date <- 100*month(input.date)+day(input.date)
   ## input Seasons upper limits in the form MMDD in the "break =" option:
@@ -188,9 +204,9 @@ getSeason <- function(input.date){
 }
 
 
-shootings_complete %>% glimpse
+##     Process Data     #############################################
 
-
+# apply above functions, mutate columns to factors, and filter to only 2015 and 2016 years
 shootings_complete %>%
   mutate(name = factor(name), 
          manner_of_death = factor(manner_of_death), 
@@ -211,35 +227,429 @@ shootings2 %>%
   group_by(body_camera) %>% 
   summarise(count = n_distinct(id))
 
-# determine best attribute for classifying
-library(randomForest)
+
+##     Association Rule Mining     #############################################
+
+# Top 5 rules for different parameters based on lift
+
+# Race=B
+shootings2 %>% 
+  select(-id, -date) %>%
+  apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
+          appearance = list(lhs = c("race=B"), default = "rhs")) %>%
+  sort(by = "lift") %>%
+  head(5) %>%
+  inspect
+#         lhs         rhs                             support    confidence lift    
+# [1] {race=B} => {age=<26}                       0.08901099 0.3410526  1.646461
+# [2] {race=B} => {signs_of_mental_illness=FALSE} 0.22197802 0.8505263  1.142404
+# [3] {race=B} => {season=Spring}                 0.07142857 0.2736842  1.102003
+# [4] {race=B} => {age=<35}                       0.08131868 0.3115789  1.088433
+# [5] {race=B} => {armed=gun}                     0.15274725 0.5852632  1.055678
+
+
+# Race=W
+shootings2 %>% 
+  select(-id, -date) %>%
+  apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
+          appearance = list(lhs = c("race=W"), default = "rhs")) %>%
+  sort(by = "lift") %>%
+  head(5) %>%
+  inspect
+#         lhs         rhs                            support   confidence lift    
+# [1] {race=W} => {age=50+}                      0.1324176 0.2547569  1.495669
+# [2] {race=W} => {signs_of_mental_illness=TRUE} 0.1670330 0.3213531  1.257769
+# [3] {race=W} => {age=<50}                      0.1813187 0.3488372  1.098415
+# [4] {race=W} => {flee=Not fleeing}             0.3741758 0.7198732  1.043959
+# [5] {race=W} => {season=Summer}                0.1461538 0.2811839  1.042270
+
+
+# Gender=M
+shootings2 %>% 
+  select(-id, -date) %>%
+  apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
+          appearance = list(lhs = c("gender=M"), default = "rhs")) %>%
+  sort(by = "lift") %>%
+  head(5) %>%
+  inspect
+#         lhs           rhs                             support   confidence lift 
+# [1] {gender=M} => {season=Summer}                 0.2642857 0.2761194  1.023498
+# [2] {gender=M} => {signs_of_mental_illness=FALSE} 0.7192308 0.7514351  1.009308
+# [3] {gender=M} => {age=<35}                       0.2763736 0.2887486  1.008680
+# [4] {gender=M} => {armed=gun}                     0.5335165 0.5574053  1.005429
+# [5] {gender=M} => {threat_level=attack}           0.6307692 0.6590126  1.002845
+
+
+# Gender=F
+shootings2 %>% 
+  select(-id, -date) %>%
+  apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
+          appearance = list(lhs = c("gender=F"), default = "rhs")) %>%
+  sort(by = "lift") %>%
+  head(5) %>%
+  inspect
+#         lhs           rhs                            support    confidence lift    
+# [1] {gender=F} => {signs_of_mental_illness=TRUE} 0.01758242 0.4102564  1.605735
+# [2] {gender=F} => {season=Winter}                0.01538462 0.3589744  1.390071
+# [3] {gender=F} => {threat_level=other}           0.01538462 0.3589744  1.232704
+# [4] {gender=F} => {age=<50}                      0.01648352 0.3846154  1.211073
+# [5] {gender=F} => {race=W}                       0.02582418 0.6025641  1.159267
+
+
+# Race=B and Gender=M
+shootings2 %>% 
+  select(-id, -date) %>%
+  apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
+          appearance = list(lhs = c("race=B", "gender=M"), default = "rhs")) %>%
+  sort(by = "lift") %>%
+  head(5) %>%
+  inspect
+#         lhs                  rhs                             support    confidence lift    
+# [1] {gender=M,race=B} => {age=<26}                       0.08626374 0.3450549  1.665782
+# [2] {gender=M,race=B} => {signs_of_mental_illness=FALSE} 0.21428571 0.8571429  1.151292
+# [3] {gender=M,race=B} => {season=Spring}                 0.06758242 0.2703297  1.088496
+# [4] {gender=M,race=B} => {armed=gun}                     0.14835165 0.5934066  1.070367
+# [5] {gender=M,race=B} => {age=<35}                       0.07637363 0.3054945  1.067179
+
+
+# Race=B and Gender=F
+shootings2 %>% 
+  select(-id, -date) %>%
+  apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
+          appearance = list(lhs = c("race=B", "gender=F"), default = "rhs")) %>%
+  sort(by = "lift") %>%
+  head(5) %>%
+  inspect
+# lhs                  rhs                    support    confidence lift    
+# [1] {gender=F,race=B} => {manner_of_death=shot} 0.01043956 0.95       1.015864
+
+
+# Race=W and Gender=M
+shootings2 %>% 
+  select(-id, -date) %>%
+  apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
+          appearance = list(lhs = c("race=W", "gender=M"), default = "rhs")) %>%
+  sort(by = "lift") %>%
+  head(5) %>%
+  inspect
+#         lhs                  rhs                            support   confidence lift    
+# [1] {gender=M,race=W} => {age=50+}                      0.1269231 0.2569522  1.508558
+# [2] {gender=M,race=W} => {signs_of_mental_illness=TRUE} 0.1549451 0.3136819  1.227744
+# [3] {gender=M,race=W} => {age=<50}                      0.1692308 0.3426029  1.078784
+# [4] {gender=M,race=W} => {season=Summer}                0.1428571 0.2892102  1.072022
+# [5] {gender=M,race=W} => {flee=Not fleeing}             0.3554945 0.7196885  1.043692
+
+
+# Race=W and Gender=F
+shootings2 %>% 
+  select(-id, -date) %>%
+  apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
+          appearance = list(lhs = c("race=W", "gender=F"), default = "rhs")) %>%
+  sort(by = "lift") %>%
+  head(5) %>%
+  inspect
+#         lhs                  rhs                            support    confidence lift    
+# [1] {gender=F,race=W} => {signs_of_mental_illness=TRUE} 0.01208791 0.4680851  1.832075
+# [2] {gender=F,race=W} => {age=<50}                      0.01208791 0.4680851  1.473901
+# [3] {gender=F,race=W} => {threat_level=attack}          0.01978022 0.7659574  1.165587
+# [4] {gender=F,race=W} => {body_camera=FALSE}            0.02417582 0.9361702  1.054350
+# [5] {gender=F,race=W} => {flee=Not fleeing}             0.01868132 0.7234043  1.049080
+
+
+# From the above association rule mining, we can see that in compartively, race=B shootings are associated with 
+# younger age groups while race=W shootings are associated with older age groups. 
+# Female related shootings are associated with mental illnesses and winter, while males related shootings are associated
+# with not having mental illnesses and summer
+
+
+
+##     Random Forest Classifications     #############################################
+
+# get general idea of how attributes classify
+
 randomForest(age ~ manner_of_death + armed + gender + race + threat_level + flee + body_camera + signs_of_mental_illness, data = shootings2, ntree=64)
+# OOB estimate of  error rate: 66.87%
+# Confusion matrix:
+#   <18 <26 <35 <50 50+ class.error
+# <18   0   8  12  10   4   1.0000000
+# <26   0 101 109 148  19   0.7320955
+# <35   0 104 137 237  43   0.7370441
+# <50   0  75 136 298  69   0.4844291
+# 50+   0  16  40 187  67   0.7838710
+
+randomForest(gender ~ manner_of_death + armed + age + race + threat_level + flee + body_camera + signs_of_mental_illness, data = shootings2, ntree=64)
+# OOB estimate of  error rate: 4.29%
+# Confusion matrix:
+#   F    M class.error
+# F 0   78           1
+# M 0 1742           0
+
 randomForest(manner_of_death ~ age + armed + gender + race + threat_level + flee + body_camera + signs_of_mental_illness, data = shootings2, ntree=64)
+# OOB estimate of  error rate: 6.65%
+# Confusion matrix:
+#                  shot shot and Tasered class.error
+# shot             1699                3 0.001762632
+# shot and Tasered  118                0 1.000000000
+
 randomForest(armed ~ age + manner_of_death + gender + race + threat_level + flee + body_camera + signs_of_mental_illness, data = shootings2, ntree=64)
+# OOB estimate of  error rate: 37.36%
+# Confusion matrix:
+#              blades blunt gun other tools toy weapon unarmed undetermined vehicle class.error
+# blades          164     0 111     0     1          0       8            3       6   0.4402730
+# blunt            13     0  13     0     0          0       2            0       1   1.0000000
+# gun              76     0 904     0     0          0       6            9      14   0.1040634
+# other             2     0   4     0     0          0       3            0       0   1.0000000
+# tools            29     0  15     0     0          0       4            1       0   1.0000000
+# toy weapon       17     0  68     0     0          0       0            0       1   1.0000000
+# unarmed          46     0  57     0     0          0      11           16      10   0.9214286
+# undetermined     19     0  27     0     0          0       6           32       6   0.6444444
+# vehicle          19     0  57     0     0          0       5            5      29   0.7478261
+
 randomForest(signs_of_mental_illness ~ age + manner_of_death + gender + race + threat_level + flee + body_camera + armed, data = shootings2, ntree=64)
+# OOB estimate of  error rate: 26.04%
+# Confusion matrix:
+#       FALSE TRUE class.error
+# FALSE  1304   51  0.03763838
+# TRUE    423   42  0.90967742
+
 randomForest(flee ~ age + manner_of_death + gender + race + threat_level + signs_of_mental_illness + body_camera + armed, data = shootings2, ntree=64)
+# OOB estimate of  error rate: 29.12%
+# Confusion matrix:
+#             Car Foot Not fleeing Other class.error
+# Car          71    1         203     0  0.74181818
+# Foot          4    0         219     0  1.00000000
+# Not fleeing  32    4        1219     0  0.02868526
+# Other         5    0          62     0  1.00000000
+
 randomForest(body_camera ~ age + manner_of_death + gender + race + threat_level + signs_of_mental_illness + flee + armed, data = shootings2, ntree=64)
+# OOB estimate of  error rate: 11.26%
+# Confusion matrix:
+#       FALSE TRUE  class.error
+# FALSE  1615    1 0.0006188119
+# TRUE    204    0 1.0000000000
+
 randomForest(race ~ age + manner_of_death + gender + body_camera + threat_level + signs_of_mental_illness + flee + armed, data = shootings2, ntree=64)
+# OOB estimate of  error rate: 45.38%
+# Confusion matrix:
+#   A   B H N O   W class.error
+# A 0   2 0 0 0  26   1.0000000
+# B 0 148 5 0 0 322   0.6884211
+# H 0  60 2 0 0 259   0.9937695
+# N 0   5 0 0 0  19   1.0000000
+# O 0   1 0 0 0  25   1.0000000
+# W 0  97 5 0 0 844   0.1078224
 
-library(bnlearn)
 
-# use an optimization routine (hill-climbing in this case) to determine network structure.
-shootingbbn <- hc(shootings2)
+#     Random Forest Classification based on Gender/Age     #########################
 
-drops = c("id", "name", "state", "city")
-shootingbbn$nodes = shootingbbn$nodes[-which(names(shootingbbn$nodes) %in% drops)]
+# select only necessary variables
+shootings2 %>%
+  select(-id, -date, -name) -> shootings2_sub
 
-shootingbbn$arcs <- shootingbbn$arcs[-which((shootingbbn$arcs[,'from'] == "season" & shootingbbn$arcs[,'to'] == "date")),]
-shootingbbn$arcs <- shootingbbn$arcs[-which((shootingbbn$arcs[,'from'] == "threat_level" & shootingbbn$arcs[,'to'] == "date")),]
+# randomize order of shootings
+shootings_rfdata <- shootings2_sub[sample(nrow(shootings2_sub)),]
+indices <- sample(nrow(shootings2_sub), size=nrow(shootings2_sub)*.75)
 
-drops2 = c("season", "date")
-shootingbbn$nodes = shootingbbn$nodes[-which(names(shootingbbn$nodes) %in% drops2)]
+# split train/test by 75/25
+# training set
+shootings_train <- shootings_rfdata[indices,]
+shootings_train %>% glimpse
 
-plot(shootingbbn)
+# testing set
+shootings_test <- shootings_rfdata[-indices,]
+shootings_test %>% glimpse
 
-# conditional table
-shootingbbn <- hc(shootings2)
-plot(shootingbbn)
-fittedbn <- bn.fit(shootingbbn, data = shootings2)
-traceback()
-shootings2 %>% glimpse
+# rf based on race
+rf1 <- randomForest(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+               body_camera + season, data = shootings_train)
+rf1_pred <- predict(rf1, newdata = shootings_test)
+rf1_pred
+
+confusionMatrix(rf1_pred, shootings_test$race)
+#              Reference
+# Prediction   A   B   H   N   O   W
+#          A   0   0   0   0   0   0
+#          B   0  48  30   2   0  42
+#          H   0   0   0   0   0   0
+#          N   0   0   0   0   0   0
+#          O   0   0   0   0   0   0
+#          W   6  57  61   1   3 205
+# Accuracy : 0.556 
+# 95% CI : (0.5091, 0.6023)
+
+rf2 <- randomForest(gender ~ manner_of_death + armed + age + race + state + signs_of_mental_illness + threat_level + flee +
+                      body_camera + season, data = shootings_train)
+rf2_pred <- predict(rf2, newdata = shootings_test)
+
+confusionMatrix(rf2_pred, shootings_test$gender)
+# Reference
+# Prediction   F   M
+#          F   4  34
+#          M  15 402
+# 
+# Accuracy : 0.8923          
+# 95% CI : (0.8601, 0.9193)
+
+# Try lowering the threshold for females - still not satisfactory results
+rf2_pred <- predict(rf2, newdata = shootings_test, type="prob")
+
+for (i in 1:nrow(rf2_pred)) {
+  rf2_predprob[i] = ifelse(rf2_pred[i, 1] > 0.4, "F", "M")
+}
+
+confusionMatrix(rf2_predprob, shootings_test$gender)
+# Confusion Matrix and Statistics
+# 
+# Reference
+# Prediction   F   M
+# F   8 115
+# M  11 321
+# 
+# Accuracy : 0.7231          
+# 95% CI : (0.6795, 0.7637)
+
+
+# Using RWeka
+rf3 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = shootings_rfdata)
+summary(rf3)
+
+evaluate_Weka_classifier(rf3, numfolds=10)
+# === Summary ===
+#   
+# Correctly Classified Instances        1252               68.7912 %
+# Incorrectly Classified Instances       568               31.2088 %
+# Kappa statistic                          0.4755
+# Mean absolute error                      0.1438
+# Root mean squared error                  0.2682
+# Relative absolute error                 68.4181 %
+# Root relative squared error             82.7589 %
+# Total Number of Instances             1820     
+# 
+# === Confusion Matrix ===
+#   
+# a   b   c   d   e   f   <-- classified as
+# 2   3   8   0   1  14 |   a = A
+# 0 260  39   0   1 175 |   b = B
+# 0  16 183   0   0 122 |   c = H
+# 0   1   1   6   0  16 |   d = N
+# 0   4   4   0   7  11 |   e = O
+# 1  80  67   3   1 794 |   f = W
+
+# On race, our random forests do not classify that well due to a disproportionate amount of distances belong to race=W
+
+
+rf4 <- J48(gender ~ manner_of_death + armed + age + race + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = shootings_rfdata)
+evaluate_Weka_classifier(rf4, numfolds=10)
+# === Summary ===
+#   
+# Correctly Classified Instances        1742               95.7143 %
+# Incorrectly Classified Instances        78                4.2857 %
+# Kappa statistic                          0     
+# Mean absolute error                      0.082 
+# Root mean squared error                  0.2025
+# Relative absolute error                 99.4439 %
+# Root relative squared error             99.9997 %
+# Total Number of Instances             1820     
+# 
+# === Confusion Matrix ===
+#   
+# a    b   <-- classified as
+# 0   78 |    a = F
+# 0 1742 |    b = M
+
+# On gender, our random forests cannot classify well due to there being 1742 male instances as compared to only 78 instances
+
+
+#     Naive Bayes Classification                           #########################
+
+# select only necessary variables
+shootings2 %>%
+  dplyr::select(-id, -date, -name) -> shootings2_sub
+
+# randomize order of shootings
+shootings_rand <- shootings2_sub[sample(nrow(shootings2_sub)),]
+indices <- sample(nrow(shootings2_sub), size=nrow(shootings2_sub)*.75)
+
+# split train/test by 75/25
+# training set
+shootings_train <- shootings_rand[indices,]
+shootings_train %>% glimpse
+
+# testing set
+shootings_test <- shootings_rand[-indices,]
+shootings_test %>% glimpse
+
+## Break down the training data for each issue into posterior probabilities:
+## Invoke naiveBayes method
+shooting_nb <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+                         body_camera + season, data = shootings_rand)
+
+shooting_nb
+summary(shooting_nb)
+
+## Let's see how well our model predicts votes:
+
+nb_test_predict <- predict(shooting_nb,shootings_test$race)
+#confusion matrix
+table(pred=nb_test_predict,true=shootings_test$race)
+
+## Fraction of correct predictions
+mean(nb_test_predict==testHouseVotes84$Class)
+
+## Create function to create, run and record model results
+nb_multiple_runs <- function(train_fraction,n){
+  fraction_correct <- rep(NA,n)
+  for (i in 1:n){
+    shootings2_sub[,'train'] <- ifelse(runif(nrow(shootings2_sub))<train_fraction,1,0)
+    trainColNum <- grep('train',names(shootings2_sub))
+    trainshootings2_sub <- shootings2_sub[shootings2_sub$train==1,-trainColNum]
+    testshootings2_sub <- shootings2_sub[shootings2_sub$train==0,-trainColNum]
+    nb_model <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+                             body_camera + season ,data = trainshootings2_sub)
+    nb_test_predict <- predict(nb_model,testshootings2_sub[,-1])
+    fraction_correct[i] <- mean(nb_test_predict==testshootings2_sub$race)
+  }
+  return(fraction_correct)
+}
+
+#20 runs, 80% of data randomly selected for training set in each run
+fraction_correct_predictions <- nb_multiple_runs(0.8,20)
+fraction_correct_predictions
+
+#summary of results
+summary(fraction_correct_predictions)
+
+#standard deviation
+sd(fraction_correct_predictions)
+
+
+
+#     Bayesian Belief Networks                             #########################
+
+
+# # Select variables to use in BBN
+# shootings2 %>% 
+#   select(-id, -name, -city, -state) -> shootings_bdata
+# 
+# shootings_bdata %>% glimpse
+# 
+# # Use an optimization routine (hill-climbing in this case) to determine network structure.
+# shootingbbn <- hc(shootings_bdata)
+# plot(shootingbbn)
+# shootingbbn
+# 
+# #drops = c("id", "name", "state", "city")
+# #shootingbbn$nodes = shootingbbn$nodes[-which(names(shootingbbn$nodes) %in% drops)]
+# 
+# #shootingbbn$arcs <- shootingbbn$arcs[-which((shootingbbn$arcs[,'from'] == "season" & shootingbbn$arcs[,'to'] == "date")),]
+# #shootingbbn$arcs <- shootingbbn$arcs[-which((shootingbbn$arcs[,'from'] == "threat_level" & shootingbbn$arcs[,'to'] == "date")),]
+# 
+# #drops2 = c("season", "date")
+# #shootingbbn$nodes = shootingbbn$nodes[-which(names(shootingbbn$nodes) %in% drops2)]
+# 
+# 
+# # Conditional table
+# fittedbn <- bn.fit(shootingbbn, data = shootings_bdata)
+# 
