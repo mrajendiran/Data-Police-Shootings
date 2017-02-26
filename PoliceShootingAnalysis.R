@@ -203,6 +203,17 @@ getSeason <- function(input.date){
   return(cuts)
 }
 
+bin_race <- function(race_vector) {
+  race_vector %>%
+    map_chr(function(race) {
+      if (race %in% c("A", "N", "O", "H")) {
+        return("O")
+      }
+      race
+    }) %>%
+    factor
+}
+
 
 ##     Process Data     #############################################
 
