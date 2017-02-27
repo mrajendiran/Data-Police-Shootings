@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+# Python 3.6
 
 # Require libraries
 import urllib.request
