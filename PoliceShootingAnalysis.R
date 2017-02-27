@@ -633,6 +633,8 @@ evaluate_Weka_classifier(rf5, numfolds=10)
 
 #     Naive Bayes Classification                                        #########################
 
+# Naive Bayes Classification for 6 types of race (W, B, A, N, H, O)
+
 # select only necessary variables
 shootings2 %>%
   dplyr::select(-id, -date, -name) -> shootings2_sub
@@ -665,7 +667,8 @@ nb_test_predict <- predict(shooting_nb,shootings_test$race)
 table(pred=nb_test_predict,true=shootings_test$race)
 
 ## Fraction of correct predictions
-mean(nb_test_predict==testHouseVotes84$Class)
+mean(nb_test_predict==shootings_test$race)
+# 0.5032967
 
 ## Create function to create, run and record model results
 nb_multiple_runs <- function(train_fraction,n){
@@ -695,3 +698,60 @@ summary(fraction_correct_predictions)
 #standard deviation
 sd(fraction_correct_predictions)
 # 0.02287208
+
+
+
+# Naive Bayes Classification for 2 types of race (W, O)
+# B, N, H, races consolidated into O to account for high disproportionality of W
+
+# select only necessary variables
+shootings_binned %>%
+  dplyr::select(-id, -date, -name) -> shootings2_sub2
+
+# randomize order of shootings
+shootings_rand <- shootings2_sub2[sample(nrow(shootings2_sub2)),]
+indices <- sample(nrow(shootings2_sub2), size=nrow(shootings2_sub2)*.75)
+
+# split train/test by 75/25
+# training set
+shootings_train <- shootings_rand[indices,]
+shootings_train %>% glimpse
+
+# testing set
+shootings_test <- shootings_rand[-indices,]
+shootings_test %>% glimpse
+
+## Break down the training data for each issue into posterior probabilities:
+## Invoke naiveBayes method
+shooting_nb <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+                            body_camera + season, data = shootings_rand)
+
+shooting_nb
+summary(shooting_nb)
+
+## Let's see how well our model predicts race:
+
+nb_test_predict <- predict(shooting_nb,shootings_test$race)
+#confusion matrix
+table(pred=nb_test_predict,true=shootings_test$race)
+#     true
+# pred   O   W
+# O      0   0
+# W    217 238
+
+## Fraction of correct predictions
+mean(nb_test_predict==shootings_test$race)
+# 0.5230769
+
+#20 runs, 80% of data randomly selected for training set in each run
+fraction_correct_predictions <- nb_multiple_runs(0.8,20)
+fraction_correct_predictions
+
+#summary of results
+summary(fraction_correct_predictions)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# 0.5417  0.5802  0.5944  0.5902  0.6003  0.6167 
+
+#standard deviation
+sd(fraction_correct_predictions)
+# 0.01809703
