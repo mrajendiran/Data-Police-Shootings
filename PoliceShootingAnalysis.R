@@ -16,16 +16,24 @@ suppressMessages({
   library(mlbench)
 })
 
+set.seed(12345)
+
+##     Classification Question       #############################################
+
+# Over the past two years, the use of deadly force by police against civilians has caused fiery national debate as citizens 
+# and government agencies try to understand the motives and circumstances around such killings. Fatalities such as that of an unarmed
+# black teenager by a white police officer in Ferguson, Missouri have prompted the public to question if police shootings are racially
+# motivated. We intend to use the Washington Post police shooting database in order to determine if it is possible to classify a shooting event,
+# (given attributes recorded such as mental health, gender, etc.) based on race. We also extend this classification question to see if
+# a shooting event can be classified by what gender the victim is (male or female). 
 
 ##     Loading & Processing Data     #############################################
-
 
 # read in the CSV file
 shootings <- read_delim("fatal-police-shootings-data.csv", delim=',', progress=F)
 shootings %>% glimpse
 
 # factor variables except for date and age
-# shootings[] <- lapply(shootings, factor)
 shootings$date  <- ymd(shootings$date)
 shootings %>% glimpse
 
@@ -57,7 +65,6 @@ shootings_complete %>%
 
 ##     Descriptive Insights     #############################################
 
-
 # Gender
 shootings_complete %>%
   group_by(gender) %>% 
@@ -65,6 +72,14 @@ shootings_complete %>%
 shootings_gender %>% glimpse
 # gender <chr> "F", "M"
 # count  <int> 81, 1878
+
+# Race
+shootings_complete %>%
+  group_by(race) %>% 
+  summarise(count = n_distinct(id)) -> shootings_race
+shootings_race %>% glimpse
+# race  <chr> "A", "B", "H", "N", "O", "W"
+# count <int> 31, 517, 349, 26, 28, 1008
 
 # Age
 shootings_complete %>%
@@ -193,7 +208,7 @@ bin_armed <- function(armed_vector) {
     factor
 }
 
-# creates separate column for seasons based on dates 
+# creates separate attribute for seasons based on dates 
 getSeason <- function(input.date){
   numeric.date <- 100*month(input.date)+day(input.date)
   ## input Seasons upper limits in the form MMDD in the "break =" option:
@@ -203,10 +218,14 @@ getSeason <- function(input.date){
   return(cuts)
 }
 
+# bins race by either being 'White' or 'Other'
+# originally we attempted to classify across all 6 races but because race=W is disproportionaly represented (accounting for over
+# 50% of the data while only being 1 of 6 race categories) we reduced the dimensions to race=W and race=0 (accounting for Black, Asian, Hispanic,
+# Native American, and Other)
 bin_race <- function(race_vector) {
   race_vector %>%
     map_chr(function(race) {
-      if (race %in% c("A", "N", "O", "H")) {
+      if (race %in% c("A", "B", "H", "N")) {
         return("O")
       }
       race
@@ -217,6 +236,7 @@ bin_race <- function(race_vector) {
 
 ##     Process Data     #############################################
 
+# does not include race binned (for association rule mining)
 # apply above functions, mutate columns to factors, and filter to only 2015 and 2016 years
 shootings_complete %>%
   mutate(name = factor(name), 
@@ -234,18 +254,37 @@ shootings_complete %>%
          season = getSeason(date)) %>%
          filter(year(date) == 2015 | year(date) == 2016) -> shootings2
 
+# includes race binned
+# apply above functions, mutate columns to factors, and filter to only 2015 and 2016 years
+shootings_complete %>%
+  mutate(name = factor(name), 
+         manner_of_death = factor(manner_of_death), 
+         armed = bin_armed(armed),
+         gender = factor(gender),
+         race = bin_race(race),
+         city = factor(city),
+         state = factor(state),
+         signs_of_mental_illness = factor(signs_of_mental_illness == "True"),
+         threat_level = factor(threat_level),
+         flee = factor(flee),
+         body_camera = factor(body_camera == "True"),
+         age = bin_age(age),
+         season = getSeason(date)) %>%
+  filter(year(date) == 2015 | year(date) == 2016) -> shootings_binned
+
 shootings2 %>%
-  group_by(body_camera) %>% 
+  group_by(race) %>% 
   summarise(count = n_distinct(id))
 
 
 ##     Association Rule Mining     #############################################
 
 # Top 5 rules for different parameters based on lift
+# Using non-binned race attribute
 
 # Race=B
 shootings2 %>% 
-  select(-id, -date) %>%
+  dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
           appearance = list(lhs = c("race=B"), default = "rhs")) %>%
   sort(by = "lift") %>%
@@ -261,7 +300,7 @@ shootings2 %>%
 
 # Race=W
 shootings2 %>% 
-  select(-id, -date) %>%
+  dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
           appearance = list(lhs = c("race=W"), default = "rhs")) %>%
   sort(by = "lift") %>%
@@ -277,7 +316,7 @@ shootings2 %>%
 
 # Gender=M
 shootings2 %>% 
-  select(-id, -date) %>%
+  dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
           appearance = list(lhs = c("gender=M"), default = "rhs")) %>%
   sort(by = "lift") %>%
@@ -293,7 +332,7 @@ shootings2 %>%
 
 # Gender=F
 shootings2 %>% 
-  select(-id, -date) %>%
+  dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
           appearance = list(lhs = c("gender=F"), default = "rhs")) %>%
   sort(by = "lift") %>%
@@ -309,7 +348,7 @@ shootings2 %>%
 
 # Race=B and Gender=M
 shootings2 %>% 
-  select(-id, -date) %>%
+  dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
           appearance = list(lhs = c("race=B", "gender=M"), default = "rhs")) %>%
   sort(by = "lift") %>%
@@ -325,7 +364,7 @@ shootings2 %>%
 
 # Race=B and Gender=F
 shootings2 %>% 
-  select(-id, -date) %>%
+  dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
           appearance = list(lhs = c("race=B", "gender=F"), default = "rhs")) %>%
   sort(by = "lift") %>%
@@ -337,7 +376,7 @@ shootings2 %>%
 
 # Race=W and Gender=M
 shootings2 %>% 
-  select(-id, -date) %>%
+  dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
           appearance = list(lhs = c("race=W", "gender=M"), default = "rhs")) %>%
   sort(by = "lift") %>%
@@ -353,7 +392,7 @@ shootings2 %>%
 
 # Race=W and Gender=F
 shootings2 %>% 
-  select(-id, -date) %>%
+  dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
           appearance = list(lhs = c("race=W", "gender=F"), default = "rhs")) %>%
   sort(by = "lift") %>%
@@ -371,7 +410,6 @@ shootings2 %>%
 # younger age groups while race=W shootings are associated with older age groups. 
 # Female related shootings are associated with mental illnesses and winter, while males related shootings are associated
 # with not having mental illnesses and summer
-
 
 
 ##     Random Forest Classifications     #############################################
@@ -443,15 +481,22 @@ randomForest(race ~ age + manner_of_death + gender + body_camera + threat_level 
 # OOB estimate of  error rate: 45.38%
 # Confusion matrix:
 #   A   B H N O   W class.error
-# A 0   2 0 0 0  26   1.0000000
-# B 0 148 5 0 0 322   0.6884211
-# H 0  60 2 0 0 259   0.9937695
-# N 0   5 0 0 0  19   1.0000000
+# A 0   1 0 0 0  27   1.0000000
+# B 0 150 5 0 0 320   0.6842105
+# H 0  60 4 0 0 257   0.9875389
+# N 0   6 0 0 0  18   1.0000000
 # O 0   1 0 0 0  25   1.0000000
-# W 0  97 5 0 0 844   0.1078224
+# W 0 105 4 0 0 837   0.1152220
+randomForest(race ~ age + manner_of_death + gender + body_camera + threat_level + signs_of_mental_illness + flee + armed, data = shootings_binned, ntree=64)
+# Confusion matrix:
+#     O   W class.error
+# O 538 336   0.3844394
+# W 348 598   0.3678647
 
 
-#     Random Forest Classification based on Gender/Age     #########################
+#     Random Forest Classification based on Gender/Race (unbinned race)    #########################
+
+# The following depicts classification evaluation for race unbinned (6 classes for race exist)
 
 # select only necessary variables
 shootings2 %>%
@@ -459,73 +504,11 @@ shootings2 %>%
 
 # randomize order of shootings
 shootings_rfdata <- shootings2_sub[sample(nrow(shootings2_sub)),]
-indices <- sample(nrow(shootings2_sub), size=nrow(shootings2_sub)*.75)
 
-# split train/test by 75/25
-# training set
-shootings_train <- shootings_rfdata[indices,]
-shootings_train %>% glimpse
-
-# testing set
-shootings_test <- shootings_rfdata[-indices,]
-shootings_test %>% glimpse
-
-# rf based on race
-rf1 <- randomForest(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-               body_camera + season, data = shootings_train)
-rf1_pred <- predict(rf1, newdata = shootings_test)
-rf1_pred
-
-confusionMatrix(rf1_pred, shootings_test$race)
-#              Reference
-# Prediction   A   B   H   N   O   W
-#          A   0   0   0   0   0   0
-#          B   0  48  30   2   0  42
-#          H   0   0   0   0   0   0
-#          N   0   0   0   0   0   0
-#          O   0   0   0   0   0   0
-#          W   6  57  61   1   3 205
-# Accuracy : 0.556 
-# 95% CI : (0.5091, 0.6023)
-
-rf2 <- randomForest(gender ~ manner_of_death + armed + age + race + state + signs_of_mental_illness + threat_level + flee +
-                      body_camera + season, data = shootings_train)
-rf2_pred <- predict(rf2, newdata = shootings_test)
-
-confusionMatrix(rf2_pred, shootings_test$gender)
-# Reference
-# Prediction   F   M
-#          F   4  34
-#          M  15 402
-# 
-# Accuracy : 0.8923          
-# 95% CI : (0.8601, 0.9193)
-
-# Try lowering the threshold for females - still not satisfactory results
-rf2_pred <- predict(rf2, newdata = shootings_test, type="prob")
-
-for (i in 1:nrow(rf2_pred)) {
-  rf2_predprob[i] = ifelse(rf2_pred[i, 1] > 0.4, "F", "M")
-}
-
-confusionMatrix(rf2_predprob, shootings_test$gender)
-# Confusion Matrix and Statistics
-# 
-# Reference
-# Prediction   F   M
-# F   8 115
-# M  11 321
-# 
-# Accuracy : 0.7231          
-# 95% CI : (0.6795, 0.7637)
-
-
-# Using RWeka
-rf3 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+# first random forest classifier based on race
+rf1 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
              body_camera + season, data = shootings_rfdata)
-summary(rf3)
-
-evaluate_Weka_classifier(rf3, numfolds=10)
+evaluate_Weka_classifier(rf1, numfolds=10)
 # === Summary ===
 #   
 # Correctly Classified Instances        1252               68.7912 %
@@ -547,12 +530,20 @@ evaluate_Weka_classifier(rf3, numfolds=10)
 # 0   4   4   0   7  11 |   e = O
 # 1  80  67   3   1 794 |   f = W
 
-# On race, our random forests do not classify that well due to a disproportionate amount of distances belong to race=W
+# Accuracy is 68.7912% overall
+# Accuracy for A: 2/28     = 0.07142857
+# Accuracy for B: 260/475  = 0.5473684
+# Accuracy for H: 183/321  = 0.5700935
+# Accuracy for N: 6/24     = 0.25
+# Accuracy for O: 7/26     = 0.2692308
+# Accuracy for W: 794/946  = 0.8393235
 
+# Our random forests poor classify by race due to a disproportionate amount of distances belong to race=W
 
-rf4 <- J48(gender ~ manner_of_death + armed + age + race + state + signs_of_mental_illness + threat_level + flee +
+# second random forest classifier based on gender
+rf2 <- J48(gender ~ manner_of_death + armed + age + race + state + signs_of_mental_illness + threat_level + flee +
              body_camera + season, data = shootings_rfdata)
-evaluate_Weka_classifier(rf4, numfolds=10)
+evaluate_Weka_classifier(rf2, numfolds=10)
 # === Summary ===
 #   
 # Correctly Classified Instances        1742               95.7143 %
@@ -570,10 +561,77 @@ evaluate_Weka_classifier(rf4, numfolds=10)
 # 0   78 |    a = F
 # 0 1742 |    b = M
 
-# On gender, our random forests cannot classify well due to there being 1742 male instances as compared to only 78 instances
+# On gender, our random forests is a poor classifier due to there being 1742 male instances as compared to only 78 instances
 
 
-#     Naive Bayes Classification                           #########################
+#     Random Forest Classification based on Race (binned race)    #########################
+
+# The following depicts classification evaluation for race when binned into two categories: race=W and race=O (including A, B, H, N, O)
+# This binning was done to handle the issue of race=W being represented disproportionately due to it accounting for over 50% of the data
+
+rf3 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = shootings_binned)
+evaluate_Weka_classifier(rf3, numfolds=10)
+# === Confusion Matrix ===
+#   
+#   a   b   <-- classified as
+# 513 361 |   a = O
+# 206 740 |   b = W
+
+# Overall Accuracy: 68.8462 %
+# Accuracy O: 0.5869565
+# Accuracy W: 0.782241
+
+# Even after binning races into two categories to handle the high disproportionality of race=W, our random forest classifier isn't able
+# to classify between genders very well. We continue our analysis into trying to classify by gender by further analyzing attributes
+
+
+#     Random Forest Classification by Race not considering guns         #########################
+
+shootings_rfdata %>%
+  filter(armed != "gun") -> s_nogun
+s_nogun %>% glimpse
+
+rf4 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = s_nogun)
+evaluate_Weka_classifier(rf4, numfolds=10)
+# === Confusion Matrix ===
+#   
+# a   b   c   d   e   f   <-- classified as
+# 0   2  11   0   1   6 |   a = A
+# 0  99  36   0   0  62 |   b = B
+# 0  16 108   0   0  42 |   c = H
+# 0   0   1   2   0   7 |   d = N
+# 0   2   4   0   4   6 |   e = O
+# 0  37  66   2   0 297 |   f = W
+
+# Overall Accuracy: 62.8853%
+# Accuracy A: 0/20    = 0
+# Accuracy B: 99/197  = 0.5025381
+# Accuracy H: 108/166 = 0.6506024
+# Accuracy N: 2/10    = 0.2
+# Accuracy O: 4/16    = 0.25
+# Accuracy W: 297/402 = 0.738806
+
+
+shootings_binned %>%
+  filter(armed != "gun") -> s_nogun
+s_nogun %>% glimpse
+
+rf5 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = s_nogun)
+evaluate_Weka_classifier(rf5, numfolds=10)
+# === Confusion Matrix ===
+#   
+#   a   b   <-- classified as
+# 513 361 |   a = O
+# 206 740 |   b = W
+# Overall Accuracy: 72.7497 (up from 68.8462%)
+# Accuracy O: 0.801956
+# Accuracy W: 0.3482587
+
+
+#     Naive Bayes Classification                                        #########################
 
 # select only necessary variables
 shootings2 %>%
@@ -600,7 +658,7 @@ shooting_nb <- naiveBayes(race ~ manner_of_death + armed + age + gender + state 
 shooting_nb
 summary(shooting_nb)
 
-## Let's see how well our model predicts votes:
+## Let's see how well our model predicts race:
 
 nb_test_predict <- predict(shooting_nb,shootings_test$race)
 #confusion matrix
@@ -631,36 +689,9 @@ fraction_correct_predictions
 
 #summary of results
 summary(fraction_correct_predictions)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# 0.5367  0.5808  0.6021  0.5956  0.6089  0.6313 
 
 #standard deviation
 sd(fraction_correct_predictions)
-
-
-
-#     Bayesian Belief Networks                             #########################
-
-
-# # Select variables to use in BBN
-# shootings2 %>% 
-#   select(-id, -name, -city, -state) -> shootings_bdata
-# 
-# shootings_bdata %>% glimpse
-# 
-# # Use an optimization routine (hill-climbing in this case) to determine network structure.
-# shootingbbn <- hc(shootings_bdata)
-# plot(shootingbbn)
-# shootingbbn
-# 
-# #drops = c("id", "name", "state", "city")
-# #shootingbbn$nodes = shootingbbn$nodes[-which(names(shootingbbn$nodes) %in% drops)]
-# 
-# #shootingbbn$arcs <- shootingbbn$arcs[-which((shootingbbn$arcs[,'from'] == "season" & shootingbbn$arcs[,'to'] == "date")),]
-# #shootingbbn$arcs <- shootingbbn$arcs[-which((shootingbbn$arcs[,'from'] == "threat_level" & shootingbbn$arcs[,'to'] == "date")),]
-# 
-# #drops2 = c("season", "date")
-# #shootingbbn$nodes = shootingbbn$nodes[-which(names(shootingbbn$nodes) %in% drops2)]
-# 
-# 
-# # Conditional table
-# fittedbn <- bn.fit(shootingbbn, data = shootings_bdata)
-# 
+# 0.02287208
