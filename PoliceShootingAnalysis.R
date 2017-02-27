@@ -20,12 +20,12 @@ set.seed(12345)
 
 ##     Classification Question       #############################################
 
-# Over the past two years, the use of deadly force by police against civilians has caused fiery national debate as citizens 
+# Over the past two years, the use of deadly force by police against civilians has caused fiery national debate as citizens
 # and government agencies try to understand the motives and circumstances around such killings. Fatalities such as that of an unarmed
 # black teenager by a white police officer in Ferguson, Missouri have prompted the public to question if police shootings are racially
 # motivated. We intend to use the Washington Post police shooting database in order to determine if it is possible to classify a shooting event,
 # (given attributes recorded such as mental health, gender, etc.) based on race. We also extend this classification question to see if
-# a shooting event can be classified by what gender the victim is (male or female). 
+# a shooting event can be classified by what gender the victim is (male or female).
 
 ##     Loading & Processing Data     #############################################
 
@@ -46,7 +46,7 @@ shootings %>%
 #     0     0     0               0     7    46      1   116     0     0                       0            0    37           0
 
 # inspect DF with complete cases
-shootings_complete <- shootings[complete.cases(shootings), ] 
+shootings_complete <- shootings[complete.cases(shootings), ]
 shootings_complete %>% glimpse # 1,959 cases from 2,126
 
 # separate cases between 2015 and 2016 (1820 total cases)
@@ -67,7 +67,7 @@ shootings_complete %>%
 
 # Gender
 shootings_complete %>%
-  group_by(gender) %>% 
+  group_by(gender) %>%
   summarise(count = n_distinct(id)) -> shootings_gender
 shootings_gender %>% glimpse
 # gender <chr> "F", "M"
@@ -75,7 +75,7 @@ shootings_gender %>% glimpse
 
 # Race
 shootings_complete %>%
-  group_by(race) %>% 
+  group_by(race) %>%
   summarise(count = n_distinct(id)) -> shootings_race
 shootings_race %>% glimpse
 # race  <chr> "A", "B", "H", "N", "O", "W"
@@ -83,24 +83,24 @@ shootings_race %>% glimpse
 
 # Age
 shootings_complete %>%
-  group_by(age) %>% 
+  group_by(age) %>%
   summarise(count = n_distinct(id)) -> shootings_age
 shootings_age %>% glimpse
-ggplot(shootings_age, aes(x=age, y=count)) + 
+ggplot(shootings_age, aes(x=age, y=count)) +
   geom_bar(stat="identity") +
   labs(list(x="Age", y="Count", title="Shootings by Age"))
 
 # Manner of Death
 shootings_complete %>%
-  group_by(manner_of_death) %>% 
+  group_by(manner_of_death) %>%
   summarise(count = n_distinct(id)) -> shootings_death
 shootings_death %>% glimpse
 # manner_of_death <chr> "shot", "shot and Tasered"
 # count           <int> 1823, 136
 
-# Threat Level 
+# Threat Level
 shootings_complete %>%
-  group_by(threat_level) %>% 
+  group_by(threat_level) %>%
   summarise(count = n_distinct(id)) -> shootings_threat
 shootings_threat %>% glimpse
 # threat_level <chr> "attack", "other", "undetermined"
@@ -108,7 +108,7 @@ shootings_threat %>% glimpse
 
 # Flee
 shootings_complete %>%
-  group_by(flee) %>% 
+  group_by(flee) %>%
   summarise(count = n_distinct(id)) -> shootings_flee
 shootings_flee %>% glimpse
 # flee  <chr> "Car", "Foot", "Not fleeing", "Other"
@@ -116,9 +116,9 @@ shootings_flee %>% glimpse
 
 # City
 shootings_complete %>%
-  group_by(city) %>% 
+  group_by(city) %>%
   summarise(count = n_distinct(id)) -> shootings_city
-ggplot(shootings_city %>% filter(count > 10), aes(x=city, y=count, fill=city)) + 
+ggplot(shootings_city %>% filter(count > 10), aes(x=city, y=count, fill=city)) +
   geom_bar(stat="identity") +
   labs(list(x="Count", title="Shootings by City")) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
@@ -126,10 +126,10 @@ ggplot(shootings_city %>% filter(count > 10), aes(x=city, y=count, fill=city)) +
 
 # State
 shootings_complete %>%
-  group_by(state) %>% 
+  group_by(state) %>%
   summarise(count = n_distinct(id)) -> shootings_state
 shootings_state %>% glimpse
-ggplot(shootings_state %>% filter(count > 20), aes(x=state, y=count, fill=state)) + 
+ggplot(shootings_state %>% filter(count > 20), aes(x=state, y=count, fill=state)) +
   geom_bar(stat="identity") +
   labs(list(x="Count", title="Shootings by State")) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
@@ -137,7 +137,7 @@ ggplot(shootings_state %>% filter(count > 20), aes(x=state, y=count, fill=state)
 
 # Signs of Mental Illness
 shootings_complete %>%
-  group_by(signs_of_mental_illness) %>% 
+  group_by(signs_of_mental_illness) %>%
   summarise(count = n_distinct(id)) -> shootings_illness
 shootings_illness %>% glimpse
 # signs_of_mental_illness <chr> "False", "True"
@@ -145,10 +145,10 @@ shootings_illness %>% glimpse
 
 # Armed
 shootings_complete %>%
-  group_by(armed) %>% 
+  group_by(armed) %>%
   summarise(count = n_distinct(id)) -> shootings_armed
 shootings_armed %>% glimpse
-ggplot(shootings_armed %>% filter(count > 5), aes(x=armed, y=count)) + 
+ggplot(shootings_armed %>% filter(count > 5), aes(x=armed, y=count)) +
   geom_bar(stat="identity") +
   labs(list(x="Count", title="Shootings by Armed Status")) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -208,7 +208,7 @@ bin_armed <- function(armed_vector) {
     factor
 }
 
-# creates separate attribute for seasons based on dates 
+# creates separate attribute for seasons based on dates
 getSeason <- function(input.date){
   numeric.date <- 100*month(input.date)+day(input.date)
   ## input Seasons upper limits in the form MMDD in the "break =" option:
@@ -239,8 +239,8 @@ bin_race <- function(race_vector) {
 # does not include race binned (for association rule mining)
 # apply above functions, mutate columns to factors, and filter to only 2015 and 2016 years
 shootings_complete %>%
-  mutate(name = factor(name), 
-         manner_of_death = factor(manner_of_death), 
+  mutate(name = factor(name),
+         manner_of_death = factor(manner_of_death),
          armed = bin_armed(armed),
          gender = factor(gender),
          race = factor(race),
@@ -257,8 +257,8 @@ shootings_complete %>%
 # includes race binned
 # apply above functions, mutate columns to factors, and filter to only 2015 and 2016 years
 shootings_complete %>%
-  mutate(name = factor(name), 
-         manner_of_death = factor(manner_of_death), 
+  mutate(name = factor(name),
+         manner_of_death = factor(manner_of_death),
          armed = bin_armed(armed),
          gender = factor(gender),
          race = bin_race(race),
@@ -272,9 +272,58 @@ shootings_complete %>%
          season = getSeason(date)) %>%
   filter(year(date) == 2015 | year(date) == 2016) -> shootings_binned
 
+
+# Pull all factor columns
 shootings2 %>%
-  group_by(race) %>% 
-  summarise(count = n_distinct(id))
+  Filter(is.factor, .) %>%
+  names ->
+  colnames_factors
+
+# Compare all factor types against each other with stacked bar charts
+colnames_factors %>%
+  walk(function(base_col){
+
+    # Compare all but base_col against base_col
+    colnames_factors %>%
+      discard(~ . == base_col) %>%
+      walk(function(other_col) {
+
+        # collect totals to allow sum of each group to 1
+        shootings2 %>%
+          group_by_(other_col) %>%
+          summarise(total_count = n()) ->
+          totals
+
+        # plot stacked bars
+        shootings2 %>%
+          inner_join(totals) %>%
+          mutate(value_count = 1 / total_count) %>%
+          select_(other_col, "value_count", base_col) %>%
+          ggplot(
+            aes(
+              x = eval(as.name(paste(other_col))),
+              y = value_count,
+              fill = eval(as.name(paste(base_col)))
+            )
+          ) +
+          geom_bar(stat="identity", width = 0.7) +
+          labs(
+            list(
+              x=other_col,
+              y="",
+              title=paste0(base_col, " vs ", other_col),
+              fill = base_col
+            )
+          ) +
+          theme_minimal(base_size = 14) +
+          theme(axis.text.x = element_text(angle = 45, hjust = 1)) ->
+          p
+
+        # write plot to plots output
+        ggsave(file.path('plots',paste0(base_col, ".",other_col,".png")), plot = p)
+      })
+  })
+
 
 
 ##     Association Rule Mining     #############################################
@@ -283,14 +332,14 @@ shootings2 %>%
 # Using non-binned race attribute
 
 # Race=B
-shootings2 %>% 
+shootings2 %>%
   dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
           appearance = list(lhs = c("race=B"), default = "rhs")) %>%
   sort(by = "lift") %>%
   head(5) %>%
   inspect
-#         lhs         rhs                             support    confidence lift    
+#         lhs         rhs                             support    confidence lift
 # [1] {race=B} => {age=<26}                       0.08901099 0.3410526  1.646461
 # [2] {race=B} => {signs_of_mental_illness=FALSE} 0.22197802 0.8505263  1.142404
 # [3] {race=B} => {season=Spring}                 0.07142857 0.2736842  1.102003
@@ -299,14 +348,14 @@ shootings2 %>%
 
 
 # Race=W
-shootings2 %>% 
+shootings2 %>%
   dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
           appearance = list(lhs = c("race=W"), default = "rhs")) %>%
   sort(by = "lift") %>%
   head(5) %>%
   inspect
-#         lhs         rhs                            support   confidence lift    
+#         lhs         rhs                            support   confidence lift
 # [1] {race=W} => {age=50+}                      0.1324176 0.2547569  1.495669
 # [2] {race=W} => {signs_of_mental_illness=TRUE} 0.1670330 0.3213531  1.257769
 # [3] {race=W} => {age=<50}                      0.1813187 0.3488372  1.098415
@@ -315,14 +364,14 @@ shootings2 %>%
 
 
 # Gender=M
-shootings2 %>% 
+shootings2 %>%
   dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
           appearance = list(lhs = c("gender=M"), default = "rhs")) %>%
   sort(by = "lift") %>%
   head(5) %>%
   inspect
-#         lhs           rhs                             support   confidence lift 
+#         lhs           rhs                             support   confidence lift
 # [1] {gender=M} => {season=Summer}                 0.2642857 0.2761194  1.023498
 # [2] {gender=M} => {signs_of_mental_illness=FALSE} 0.7192308 0.7514351  1.009308
 # [3] {gender=M} => {age=<35}                       0.2763736 0.2887486  1.008680
@@ -331,14 +380,14 @@ shootings2 %>%
 
 
 # Gender=F
-shootings2 %>% 
+shootings2 %>%
   dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 2),
           appearance = list(lhs = c("gender=F"), default = "rhs")) %>%
   sort(by = "lift") %>%
   head(5) %>%
   inspect
-#         lhs           rhs                            support    confidence lift    
+#         lhs           rhs                            support    confidence lift
 # [1] {gender=F} => {signs_of_mental_illness=TRUE} 0.01758242 0.4102564  1.605735
 # [2] {gender=F} => {season=Winter}                0.01538462 0.3589744  1.390071
 # [3] {gender=F} => {threat_level=other}           0.01538462 0.3589744  1.232704
@@ -347,14 +396,14 @@ shootings2 %>%
 
 
 # Race=B and Gender=M
-shootings2 %>% 
+shootings2 %>%
   dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
           appearance = list(lhs = c("race=B", "gender=M"), default = "rhs")) %>%
   sort(by = "lift") %>%
   head(5) %>%
   inspect
-#         lhs                  rhs                             support    confidence lift    
+#         lhs                  rhs                             support    confidence lift
 # [1] {gender=M,race=B} => {age=<26}                       0.08626374 0.3450549  1.665782
 # [2] {gender=M,race=B} => {signs_of_mental_illness=FALSE} 0.21428571 0.8571429  1.151292
 # [3] {gender=M,race=B} => {season=Spring}                 0.06758242 0.2703297  1.088496
@@ -363,26 +412,26 @@ shootings2 %>%
 
 
 # Race=B and Gender=F
-shootings2 %>% 
+shootings2 %>%
   dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
           appearance = list(lhs = c("race=B", "gender=F"), default = "rhs")) %>%
   sort(by = "lift") %>%
   head(5) %>%
   inspect
-# lhs                  rhs                    support    confidence lift    
+# lhs                  rhs                    support    confidence lift
 # [1] {gender=F,race=B} => {manner_of_death=shot} 0.01043956 0.95       1.015864
 
 
 # Race=W and Gender=M
-shootings2 %>% 
+shootings2 %>%
   dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
           appearance = list(lhs = c("race=W", "gender=M"), default = "rhs")) %>%
   sort(by = "lift") %>%
   head(5) %>%
   inspect
-#         lhs                  rhs                            support   confidence lift    
+#         lhs                  rhs                            support   confidence lift
 # [1] {gender=M,race=W} => {age=50+}                      0.1269231 0.2569522  1.508558
 # [2] {gender=M,race=W} => {signs_of_mental_illness=TRUE} 0.1549451 0.3136819  1.227744
 # [3] {gender=M,race=W} => {age=<50}                      0.1692308 0.3426029  1.078784
@@ -391,14 +440,14 @@ shootings2 %>%
 
 
 # Race=W and Gender=F
-shootings2 %>% 
+shootings2 %>%
   dplyr::select(-id, -date) %>%
   apriori(parameter = list(support = 0.01, confidence = 0.25, minlen = 3),
           appearance = list(lhs = c("race=W", "gender=F"), default = "rhs")) %>%
   sort(by = "lift") %>%
   head(5) %>%
   inspect
-#         lhs                  rhs                            support    confidence lift    
+#         lhs                  rhs                            support    confidence lift
 # [1] {gender=F,race=W} => {signs_of_mental_illness=TRUE} 0.01208791 0.4680851  1.832075
 # [2] {gender=F,race=W} => {age=<50}                      0.01208791 0.4680851  1.473901
 # [3] {gender=F,race=W} => {threat_level=attack}          0.01978022 0.7659574  1.165587
@@ -406,8 +455,8 @@ shootings2 %>%
 # [5] {gender=F,race=W} => {flee=Not fleeing}             0.01868132 0.7234043  1.049080
 
 
-# From the above association rule mining, we can see that in compartively, race=B shootings are associated with 
-# younger age groups while race=W shootings are associated with older age groups. 
+# From the above association rule mining, we can see that in compartively, race=B shootings are associated with
+# younger age groups while race=W shootings are associated with older age groups.
 # Female related shootings are associated with mental illnesses and winter, while males related shootings are associated
 # with not having mental illnesses and summer
 
@@ -510,7 +559,7 @@ rf1 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_ment
              body_camera + season, data = shootings_rfdata)
 evaluate_Weka_classifier(rf1, numfolds=10)
 # === Summary ===
-#   
+#
 # Correctly Classified Instances        1252               68.7912 %
 # Incorrectly Classified Instances       568               31.2088 %
 # Kappa statistic                          0.4755
@@ -518,10 +567,10 @@ evaluate_Weka_classifier(rf1, numfolds=10)
 # Root mean squared error                  0.2682
 # Relative absolute error                 68.4181 %
 # Root relative squared error             82.7589 %
-# Total Number of Instances             1820     
-# 
+# Total Number of Instances             1820
+#
 # === Confusion Matrix ===
-#   
+#
 # a   b   c   d   e   f   <-- classified as
 # 2   3   8   0   1  14 |   a = A
 # 0 260  39   0   1 175 |   b = B
@@ -545,18 +594,18 @@ rf2 <- J48(gender ~ manner_of_death + armed + age + race + state + signs_of_ment
              body_camera + season, data = shootings_rfdata)
 evaluate_Weka_classifier(rf2, numfolds=10)
 # === Summary ===
-#   
+#
 # Correctly Classified Instances        1742               95.7143 %
 # Incorrectly Classified Instances        78                4.2857 %
-# Kappa statistic                          0     
-# Mean absolute error                      0.082 
+# Kappa statistic                          0
+# Mean absolute error                      0.082
 # Root mean squared error                  0.2025
 # Relative absolute error                 99.4439 %
 # Root relative squared error             99.9997 %
-# Total Number of Instances             1820     
-# 
+# Total Number of Instances             1820
+#
 # === Confusion Matrix ===
-#   
+#
 # a    b   <-- classified as
 # 0   78 |    a = F
 # 0 1742 |    b = M
@@ -573,7 +622,7 @@ rf3 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_ment
              body_camera + season, data = shootings_binned)
 evaluate_Weka_classifier(rf3, numfolds=10)
 # === Confusion Matrix ===
-#   
+#
 #   a   b   <-- classified as
 # 513 361 |   a = O
 # 206 740 |   b = W
@@ -596,7 +645,7 @@ rf4 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_ment
              body_camera + season, data = s_nogun)
 evaluate_Weka_classifier(rf4, numfolds=10)
 # === Confusion Matrix ===
-#   
+#
 # a   b   c   d   e   f   <-- classified as
 # 0   2  11   0   1   6 |   a = A
 # 0  99  36   0   0  62 |   b = B
@@ -622,7 +671,7 @@ rf5 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_ment
              body_camera + season, data = s_nogun)
 evaluate_Weka_classifier(rf5, numfolds=10)
 # === Confusion Matrix ===
-#   
+#
 #   a   b   <-- classified as
 # 513 361 |   a = O
 # 206 740 |   b = W
@@ -689,8 +738,8 @@ fraction_correct_predictions
 
 #summary of results
 summary(fraction_correct_predictions)
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# 0.5367  0.5808  0.6021  0.5956  0.6089  0.6313 
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+# 0.5367  0.5808  0.6021  0.5956  0.6089  0.6313
 
 #standard deviation
 sd(fraction_correct_predictions)
