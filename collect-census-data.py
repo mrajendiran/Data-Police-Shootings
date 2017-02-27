@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
+# Python 3.6
 
+# Require libraries
 import urllib.request
 import urllib.error
 from time import sleep
@@ -6,7 +9,7 @@ import csv
 import json
 import os
 
-
+# Specify Census Variables and human readable names
 reports = {
     'occupied_housing_units_total':     'H0040001',
     'occupied_housing_units_owned_with_a_mortgage_or_a_loan':     'H0040002',
@@ -19,19 +22,22 @@ reports = {
     'hispanic_population':  'P0090002'
 }
 
-
+# Locations of statics
 LOCATION_CSV = './state-city-fips.csv'
 SHOOTINGS_CSV = './fatal-police-shootings-data.csv'
 OUTPUT_CSV = './fatal-police-shootings-data-census.csv'
 CACHE_DIRECTORY = 'cache'
 REPORT_YEAR = 2010
 
+# pull API key
 with open("api-census.key") as file:
     API_KEY = file.read().splitlines()[0]
 
+# Ensure cache directory exists
 if not os.path.exists(CACHE_DIRECTORY):
     os.makedirs(CACHE_DIRECTORY)
 
+# get a rough mapping of location -> fips
 with open(LOCATION_CSV) as csvfile:
     reader = csv.DictReader(csvfile)
     fips = {}
@@ -49,13 +55,15 @@ with open(LOCATION_CSV) as csvfile:
             'PLACEFP': int(row['PLACEFP'])
         }
 
-
+# known misspellings in main data set
 misspellings = {
     "St, Louis": "St. Louis",
     "Lakes Charles": "Lake Charles",
     "Ft. Lauderdale": "Fort Lauderdale",
 }
 
+# Group smaller places into nearby large ones.
+# This is incomplete and may incorrectly group places
 obscure_places = {
     ('TX', 'Baytown'): "Chambers County",
     ('OH', 'Rome'): "Adams County",
@@ -68,7 +76,7 @@ obscure_places = {
     # TODO: Add more of the ~180 missing
 }
 
-
+# apply fixes to locations
 def fix_pair(pair):
     for misspelling, correct in misspellings.items():
         if (pair[1] == misspelling):
@@ -78,7 +86,7 @@ def fix_pair(pair):
             return (pair[0], loc)
     return pair
 
-
+# collect all shooting, by full data and locations
 with open(SHOOTINGS_CSV) as csvfile:
     reader = csv.DictReader(csvfile)
     locations = []
@@ -89,9 +97,11 @@ with open(SHOOTINGS_CSV) as csvfile:
             'row': row
         })
 
+# Helper cache file path
 def cache_name(statefp, placefp):
     return os.path.join(CACHE_DIRECTORY, 'cache-{0}.{1}.json'.format(statefp, placefp))
 
+# Attempt a local disk cache hit
 def cache_check(statefp, placefp):
     try:
         with open(cache_name(statefp, placefp)) as file:
@@ -100,11 +110,12 @@ def cache_check(statefp, placefp):
     except:
         return None
 
+# Write to local cache
 def cache_write(statefp, placefp, data):
     with open(cache_name(statefp, placefp), "w") as f:
         f.write(json.dumps(data))
 
-
+# Request a variable from api.census.gov
 def get_data(variable, statefp, placefp):
     url = 'http://api.census.gov/data/{0}/{1}?key={2}&get={3}&in=state:{4}&for=place:{5}'.format(
         str(REPORT_YEAR),
@@ -126,13 +137,14 @@ def get_data(variable, statefp, placefp):
         response = urllib.request.urlopen(req)
 
     res = response.read()
+    # Decode the results, in location [1][0]
     if (len(res) < 1):
         return None
     res = json.loads(res.decode('utf8'))
-    # print(res[1][0])
     response.close()
     return int(res[1][0])
 
+# Get variables for a FIPS location. Makes use of cache
 def get_data_all(statefp, placefp):
     cache_results = cache_check(statefp, placefp)
     if cache_results is not None:
@@ -143,12 +155,14 @@ def get_data_all(statefp, placefp):
     cache_write(statefp, placefp, results)
     return results
 
+# in case there's a bad response, show a blank version of the report (ie NAs)
 def get_data_blank():
     di = {}
     for key, value in reports.items():
         di[key] = None
     return di
 
+# Fill out rows based on census data
 rows_new = []
 for location in locations:
     if location['pair'] not in fips:
@@ -159,7 +173,7 @@ for location in locations:
     row_new = {**location['row'], **data}
     rows_new.append(row_new)
 
-
+# Write final data to updated csv
 with open(OUTPUT_CSV, 'w') as f:
     w = csv.DictWriter(f, rows_new[0].keys())
     w.writeheader()

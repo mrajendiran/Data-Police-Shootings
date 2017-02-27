@@ -1,2 +1,3 @@
 api-census.key
 cache/*
+plots/*.png
