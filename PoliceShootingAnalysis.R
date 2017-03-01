@@ -221,7 +221,7 @@ getSeason <- function(input.date){
 # bins race by either being 'White' or 'Other'
 # originally we attempted to classify across all 6 races but because race=W is disproportionaly represented (accounting for over
 # 50% of the data while only being 1 of 6 race categories) we reduced the dimensions to race=W and race=0 (accounting for Black, Asian, Hispanic,
-# Native American, and Other)
+# Native American, and Other). This binning creates two almost proportionally equivalent categories.  
 bin_race <- function(race_vector) {
   race_vector %>%
     map_chr(function(race) {
@@ -236,7 +236,7 @@ bin_race <- function(race_vector) {
 
 ##     Process Data     #############################################
 
-# does not include race binned (for association rule mining)
+# data not including race as binned into 2 categories (dataframe used for association rule mining)
 # apply above functions, mutate columns to factors, and filter to only 2015 and 2016 years
 shootings_complete %>%
   mutate(name = factor(name),
@@ -254,7 +254,7 @@ shootings_complete %>%
          season = getSeason(date)) %>%
          filter(year(date) == 2015 | year(date) == 2016) -> shootings2
 
-# includes race binned
+# data including race binned
 # apply above functions, mutate columns to factors, and filter to only 2015 and 2016 years
 shootings_complete %>%
   mutate(name = factor(name),
@@ -461,9 +461,317 @@ shootings2 %>%
 # with not having mental illnesses and summer
 
 
-##     Random Forest Classifications     #############################################
+#     Random Forest Classification based on Gender/Race (unbinned race)    #########################
 
-# get general idea of how attributes classify
+# The following depicts classification evaluation for race unbinned (6 classes for race exist)
+
+# select only necessary variables
+shootings2 %>%
+  select(-id, -date, -name) -> shootings2_sub
+
+# randomize order of shootings
+shootings_rfdata <- shootings2_sub[sample(nrow(shootings2_sub)),]
+
+# first random forest classifier based on race
+rf1 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = shootings_rfdata)
+evaluate_Weka_classifier(rf1, numfolds=10)
+# === Summary ===
+#
+# Correctly Classified Instances        1252               68.7912 %
+# Incorrectly Classified Instances       568               31.2088 %
+# Kappa statistic                          0.4755
+# Mean absolute error                      0.1438
+# Root mean squared error                  0.2682
+# Relative absolute error                 68.4181 %
+# Root relative squared error             82.7589 %
+# Total Number of Instances             1820
+#
+# === Confusion Matrix ===
+#
+# a   b   c   d   e   f   <-- classified as
+# 2   3   8   0   1  14 |   a = A
+# 0 260  39   0   1 175 |   b = B
+# 0  16 183   0   0 122 |   c = H
+# 0   1   1   6   0  16 |   d = N
+# 0   4   4   0   7  11 |   e = O
+# 1  80  67   3   1 794 |   f = W
+
+# Accuracy is 68.7912% overall
+# Accuracy for A: 2/28     = 0.07142857
+# Accuracy for B: 260/475  = 0.5473684
+# Accuracy for H: 183/321  = 0.5700935
+# Accuracy for N: 6/24     = 0.25
+# Accuracy for O: 7/26     = 0.2692308
+# Accuracy for W: 794/946  = 0.8393235
+
+# Our random forests poor classify by race due to a disproportionate amount of distances belong to race=W
+
+# second random forest classifier based on gender
+rf2 <- J48(gender ~ manner_of_death + armed + age + race + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = shootings_rfdata)
+evaluate_Weka_classifier(rf2, numfolds=10)
+# === Summary ===
+#
+# Correctly Classified Instances        1742               95.7143 %
+# Incorrectly Classified Instances        78                4.2857 %
+# Kappa statistic                          0
+# Mean absolute error                      0.082
+# Root mean squared error                  0.2025
+# Relative absolute error                 99.4439 %
+# Root relative squared error             99.9997 %
+# Total Number of Instances             1820
+#
+# === Confusion Matrix ===
+#
+# a    b   <-- classified as
+# 0   78 |    a = F
+# 0 1742 |    b = M
+
+# On gender, our random forests is a poor classifier due to there being 1742 male instances as compared to only 78 female instances
+
+
+#     Random Forest Classification based on Race (binned race)    #########################
+
+# The following depicts classification evaluation for race when binned into two categories: race=W and race=O (including A, B, H, N, O)
+# This binning was done to handle the issue of race=W being represented disproportionately due to it accounting for over 50% of the data
+
+rf3 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = shootings_binned)
+evaluate_Weka_classifier(rf3, numfolds=10)
+# === Confusion Matrix ===
+#
+#   a   b   <-- classified as
+# 513 361 |   a = O
+# 206 740 |   b = W
+
+# Overall Accuracy: 68.8462 %
+# Accuracy O: 0.5869565
+# Accuracy W: 0.782241
+
+# Even after binning races into two categories to handle the high disproportionality of race=W, our random forest classifier isn't able
+# to classify between genders very well. We continue our analysis into trying to classify by gender by further analyzing attributes
+
+
+#     Random Forest Classification by Race not considering guns         #########################
+
+# We were interested in seeing if, not accounting for guns, we could classify better based on race 
+shootings_rfdata %>%
+  filter(armed != "gun") -> s_nogun
+s_nogun %>% glimpse
+
+rf4 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = s_nogun)
+evaluate_Weka_classifier(rf4, numfolds=10)
+# === Confusion Matrix ===
+#
+# a   b   c   d   e   f   <-- classified as
+# 0   2  11   0   1   6 |   a = A
+# 0  99  36   0   0  62 |   b = B
+# 0  16 108   0   0  42 |   c = H
+# 0   0   1   2   0   7 |   d = N
+# 0   2   4   0   4   6 |   e = O
+# 0  37  66   2   0 297 |   f = W
+
+# Overall Accuracy: 62.8853% (down from 68.7912% including guns)
+# Accuracy A: 0/20    = 0
+# Accuracy B: 99/197  = 0.5025381
+# Accuracy H: 108/166 = 0.6506024
+# Accuracy N: 2/10    = 0.2
+# Accuracy O: 4/16    = 0.25
+# Accuracy W: 297/402 = 0.738806
+
+
+shootings_binned %>%
+  filter(armed != "gun") -> s_nogun
+s_nogun %>% glimpse
+
+rf5 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = s_nogun)
+evaluate_Weka_classifier(rf5, numfolds=10)
+# === Confusion Matrix ===
+#
+#   a   b   <-- classified as
+# 513 361 |   a = O
+# 206 740 |   b = W
+# Overall Accuracy: 72.7497 (up from 68.8462%) including guns
+# Accuracy O: 0.801956 (up from 0.5869565)
+# Accuracy W: 0.3482587 (up from 0.782241)
+
+# Our classification performance actually degrades when we remove guns from the data and classify based on race with 
+# 6 categories.
+# When considering the dataset where we have binned race into two categories, our overall classification performance improves by 3.9035%.
+# Our accuracy for classifying Race='O' (Other) increases by 0.2149995 (21%) but our accuracy for classifying race='W' (White)
+# significantly decreases by 0.4339823 (43%)
+
+#### CHANGE CODE BELOW ##### 
+
+downSample(shootings2, shootings2$race, list = FALSE, yname = "race") %>%
+  group_by(race) %>%
+  #summarise(count = n_distinct(name)) %>%
+  glimpse
+  
+  
+# media bias
+shootings_complete %>%
+  group_by(race) %>%
+  summarise(count = n_distinct(id)) -> shootings_race
+
+downSample(shootings2, shootings2$race, list = FALSE, yname = "race") %>% glimpse
+
+#     Random Forest Classification with Downsampled Race    #########################
+
+rf3 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+             body_camera + season, data = shootings_binned)
+evaluate_Weka_classifier(rf3, numfolds=10)
+# === Confusion Matrix ===
+#
+#   a   b   <-- classified as
+# 513 361 |   a = O
+# 206 740 |   b = W
+
+# Overall Accuracy: 68.8462 %
+# Accuracy O: 0.5869565
+# Accuracy W: 0.782241
+
+# Even after binning races into two categories to handle the high disproportionality of race=W, our random forest classifier isn't able
+# to classify between genders very well. We continue our analysis into trying to classify by gender by further analyzing attributes
+
+
+
+#     Naive Bayes Classification                                        #########################
+
+# Naive Bayes Classification for 6 types of race (W, B, A, N, H, O)
+
+# select only necessary variables
+shootings2 %>%
+  dplyr::select(-id, -date, -name) -> shootings2_sub
+
+# randomize order of shootings
+shootings_rand <- shootings2_sub[sample(nrow(shootings2_sub)),]
+indices <- sample(nrow(shootings2_sub), size=nrow(shootings2_sub)*.75)
+
+# split train/test by 75/25
+# training set
+shootings_train <- shootings_rand[indices,]
+shootings_train %>% glimpse
+
+# testing set
+shootings_test <- shootings_rand[-indices,]
+shootings_test %>% glimpse
+
+## Break down the training data for each issue into posterior probabilities:
+## Invoke naiveBayes method
+shooting_nb <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+                         body_camera + season, data = shootings_rand)
+
+shooting_nb
+summary(shooting_nb)
+
+## Let's see how well our model predicts race:
+
+nb_test_predict <- predict(shooting_nb,shootings_test$race)
+#confusion matrix
+table(pred=nb_test_predict,true=shootings_test$race)
+
+## Fraction of correct predictions
+mean(nb_test_predict==shootings_test$race)
+# 0.5230769
+
+## Create function to create, run and record model results
+nb_multiple_runs <- function(train_fraction,n){
+  fraction_correct <- rep(NA,n)
+  for (i in 1:n){
+    shootings2_sub[,'train'] <- ifelse(runif(nrow(shootings2_sub))<train_fraction,1,0)
+    trainColNum <- grep('train',names(shootings2_sub))
+    trainshootings2_sub <- shootings2_sub[shootings2_sub$train==1,-trainColNum]
+    testshootings2_sub <- shootings2_sub[shootings2_sub$train==0,-trainColNum]
+    nb_model <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+                             body_camera + season ,data = trainshootings2_sub)
+    nb_test_predict <- predict(nb_model,testshootings2_sub[,-1])
+    fraction_correct[i] <- mean(nb_test_predict==testshootings2_sub$race)
+  }
+  return(fraction_correct)
+}
+
+#20 runs, 80% of data randomly selected for training set in each run
+fraction_correct_predictions <- nb_multiple_runs(0.8,20)
+fraction_correct_predictions
+# 0.6373626 0.5722222 0.5625000 0.5845272 0.6314363 0.5669291 0.5888325 0.5741758 0.5864865 0.5642458 0.5566502 0.5771429
+# 0.6039326 0.5913978 0.6106443 0.5733696 0.6062323 0.5263158 0.5726027 0.5646067
+
+#summary of results
+summary(fraction_correct_predictions)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+# 0.5263  0.5663  0.5757  0.5826  0.5945  0.6374 
+
+#standard deviation
+sd(fraction_correct_predictions)
+# 0.02602038
+
+
+# Naive Bayes Classification for 2 types of race (W, O)
+# B, N, H, races consolidated into 'O' to account for high disproportionality of W
+
+# select only necessary variables
+shootings_binned %>%
+  dplyr::select(-id, -date, -name) -> shootings2_sub2
+
+# randomize order of shootings
+shootings_rand <- shootings2_sub2[sample(nrow(shootings2_sub2)),]
+indices <- sample(nrow(shootings2_sub2), size=nrow(shootings2_sub2)*.75)
+
+# split train/test by 75/25
+# training set
+shootings_train <- shootings_rand[indices,]
+shootings_train %>% glimpse
+
+# testing set
+shootings_test <- shootings_rand[-indices,]
+shootings_test %>% glimpse
+
+## Break down the training data for each issue into posterior probabilities:
+## Invoke naiveBayes method
+shooting_nb <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
+                            body_camera + season, data = shootings_rand)
+
+shooting_nb
+summary(shooting_nb)
+
+## Let's see how well our model predicts race:
+
+nb_test_predict <- predict(shooting_nb,shootings_test$race)
+#confusion matrix
+table(pred=nb_test_predict,true=shootings_test$race)
+#     true
+# pred   O   W
+# O      0   0
+# W    217 238
+
+## Fraction of correct predictions
+mean(nb_test_predict==shootings_test$race)
+# 0.5230769
+
+#20 runs, 80% of data randomly selected for training set in each run
+fraction_correct_predictions <- nb_multiple_runs(0.8,20)
+fraction_correct_predictions
+
+#summary of results
+summary(fraction_correct_predictions)
+# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# 0.5417  0.5802  0.5944  0.5902  0.6003  0.6167 
+
+#standard deviation
+sd(fraction_correct_predictions)
+# 0.01809703
+
+
+##     Appendix Code                     #############################################
+
+# In determining a classification question, we looked at how different attributes in the data were generally able
+# to classify without any pre-binning, downsampling, etc. 
+
+##     Random Forest Classifications     #############################################
 
 randomForest(age ~ manner_of_death + armed + gender + race + threat_level + flee + body_camera + signs_of_mental_illness, data = shootings2, ntree=64)
 # OOB estimate of  error rate: 66.87%
@@ -541,266 +849,3 @@ randomForest(race ~ age + manner_of_death + gender + body_camera + threat_level 
 #     O   W class.error
 # O 538 336   0.3844394
 # W 348 598   0.3678647
-
-
-#     Random Forest Classification based on Gender/Race (unbinned race)    #########################
-
-# The following depicts classification evaluation for race unbinned (6 classes for race exist)
-
-# select only necessary variables
-shootings2 %>%
-  select(-id, -date, -name) -> shootings2_sub
-
-# randomize order of shootings
-shootings_rfdata <- shootings2_sub[sample(nrow(shootings2_sub)),]
-
-# first random forest classifier based on race
-rf1 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-             body_camera + season, data = shootings_rfdata)
-evaluate_Weka_classifier(rf1, numfolds=10)
-# === Summary ===
-#
-# Correctly Classified Instances        1252               68.7912 %
-# Incorrectly Classified Instances       568               31.2088 %
-# Kappa statistic                          0.4755
-# Mean absolute error                      0.1438
-# Root mean squared error                  0.2682
-# Relative absolute error                 68.4181 %
-# Root relative squared error             82.7589 %
-# Total Number of Instances             1820
-#
-# === Confusion Matrix ===
-#
-# a   b   c   d   e   f   <-- classified as
-# 2   3   8   0   1  14 |   a = A
-# 0 260  39   0   1 175 |   b = B
-# 0  16 183   0   0 122 |   c = H
-# 0   1   1   6   0  16 |   d = N
-# 0   4   4   0   7  11 |   e = O
-# 1  80  67   3   1 794 |   f = W
-
-# Accuracy is 68.7912% overall
-# Accuracy for A: 2/28     = 0.07142857
-# Accuracy for B: 260/475  = 0.5473684
-# Accuracy for H: 183/321  = 0.5700935
-# Accuracy for N: 6/24     = 0.25
-# Accuracy for O: 7/26     = 0.2692308
-# Accuracy for W: 794/946  = 0.8393235
-
-# Our random forests poor classify by race due to a disproportionate amount of distances belong to race=W
-
-# second random forest classifier based on gender
-rf2 <- J48(gender ~ manner_of_death + armed + age + race + state + signs_of_mental_illness + threat_level + flee +
-             body_camera + season, data = shootings_rfdata)
-evaluate_Weka_classifier(rf2, numfolds=10)
-# === Summary ===
-#
-# Correctly Classified Instances        1742               95.7143 %
-# Incorrectly Classified Instances        78                4.2857 %
-# Kappa statistic                          0
-# Mean absolute error                      0.082
-# Root mean squared error                  0.2025
-# Relative absolute error                 99.4439 %
-# Root relative squared error             99.9997 %
-# Total Number of Instances             1820
-#
-# === Confusion Matrix ===
-#
-# a    b   <-- classified as
-# 0   78 |    a = F
-# 0 1742 |    b = M
-
-# On gender, our random forests is a poor classifier due to there being 1742 male instances as compared to only 78 instances
-
-
-#     Random Forest Classification based on Race (binned race)    #########################
-
-# The following depicts classification evaluation for race when binned into two categories: race=W and race=O (including A, B, H, N, O)
-# This binning was done to handle the issue of race=W being represented disproportionately due to it accounting for over 50% of the data
-
-rf3 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-             body_camera + season, data = shootings_binned)
-evaluate_Weka_classifier(rf3, numfolds=10)
-# === Confusion Matrix ===
-#
-#   a   b   <-- classified as
-# 513 361 |   a = O
-# 206 740 |   b = W
-
-# Overall Accuracy: 68.8462 %
-# Accuracy O: 0.5869565
-# Accuracy W: 0.782241
-
-# Even after binning races into two categories to handle the high disproportionality of race=W, our random forest classifier isn't able
-# to classify between genders very well. We continue our analysis into trying to classify by gender by further analyzing attributes
-
-
-#     Random Forest Classification by Race not considering guns         #########################
-
-shootings_rfdata %>%
-  filter(armed != "gun") -> s_nogun
-s_nogun %>% glimpse
-
-rf4 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-             body_camera + season, data = s_nogun)
-evaluate_Weka_classifier(rf4, numfolds=10)
-# === Confusion Matrix ===
-#
-# a   b   c   d   e   f   <-- classified as
-# 0   2  11   0   1   6 |   a = A
-# 0  99  36   0   0  62 |   b = B
-# 0  16 108   0   0  42 |   c = H
-# 0   0   1   2   0   7 |   d = N
-# 0   2   4   0   4   6 |   e = O
-# 0  37  66   2   0 297 |   f = W
-
-# Overall Accuracy: 62.8853%
-# Accuracy A: 0/20    = 0
-# Accuracy B: 99/197  = 0.5025381
-# Accuracy H: 108/166 = 0.6506024
-# Accuracy N: 2/10    = 0.2
-# Accuracy O: 4/16    = 0.25
-# Accuracy W: 297/402 = 0.738806
-
-
-shootings_binned %>%
-  filter(armed != "gun") -> s_nogun
-s_nogun %>% glimpse
-
-rf5 <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-             body_camera + season, data = s_nogun)
-evaluate_Weka_classifier(rf5, numfolds=10)
-# === Confusion Matrix ===
-#
-#   a   b   <-- classified as
-# 513 361 |   a = O
-# 206 740 |   b = W
-# Overall Accuracy: 72.7497 (up from 68.8462%)
-# Accuracy O: 0.801956
-# Accuracy W: 0.3482587
-
-
-#     Naive Bayes Classification                                        #########################
-
-# Naive Bayes Classification for 6 types of race (W, B, A, N, H, O)
-
-# select only necessary variables
-shootings2 %>%
-  dplyr::select(-id, -date, -name) -> shootings2_sub
-
-# randomize order of shootings
-shootings_rand <- shootings2_sub[sample(nrow(shootings2_sub)),]
-indices <- sample(nrow(shootings2_sub), size=nrow(shootings2_sub)*.75)
-
-# split train/test by 75/25
-# training set
-shootings_train <- shootings_rand[indices,]
-shootings_train %>% glimpse
-
-# testing set
-shootings_test <- shootings_rand[-indices,]
-shootings_test %>% glimpse
-
-## Break down the training data for each issue into posterior probabilities:
-## Invoke naiveBayes method
-shooting_nb <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-                         body_camera + season, data = shootings_rand)
-
-shooting_nb
-summary(shooting_nb)
-
-## Let's see how well our model predicts race:
-
-nb_test_predict <- predict(shooting_nb,shootings_test$race)
-#confusion matrix
-table(pred=nb_test_predict,true=shootings_test$race)
-
-## Fraction of correct predictions
-mean(nb_test_predict==shootings_test$race)
-# 0.5032967
-
-## Create function to create, run and record model results
-nb_multiple_runs <- function(train_fraction,n){
-  fraction_correct <- rep(NA,n)
-  for (i in 1:n){
-    shootings2_sub[,'train'] <- ifelse(runif(nrow(shootings2_sub))<train_fraction,1,0)
-    trainColNum <- grep('train',names(shootings2_sub))
-    trainshootings2_sub <- shootings2_sub[shootings2_sub$train==1,-trainColNum]
-    testshootings2_sub <- shootings2_sub[shootings2_sub$train==0,-trainColNum]
-    nb_model <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-                             body_camera + season ,data = trainshootings2_sub)
-    nb_test_predict <- predict(nb_model,testshootings2_sub[,-1])
-    fraction_correct[i] <- mean(nb_test_predict==testshootings2_sub$race)
-  }
-  return(fraction_correct)
-}
-
-#20 runs, 80% of data randomly selected for training set in each run
-fraction_correct_predictions <- nb_multiple_runs(0.8,20)
-fraction_correct_predictions
-
-#summary of results
-summary(fraction_correct_predictions)
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
-# 0.5367  0.5808  0.6021  0.5956  0.6089  0.6313
-
-#standard deviation
-sd(fraction_correct_predictions)
-# 0.02287208
-
-
-
-# Naive Bayes Classification for 2 types of race (W, O)
-# B, N, H, races consolidated into O to account for high disproportionality of W
-
-# select only necessary variables
-shootings_binned %>%
-  dplyr::select(-id, -date, -name) -> shootings2_sub2
-
-# randomize order of shootings
-shootings_rand <- shootings2_sub2[sample(nrow(shootings2_sub2)),]
-indices <- sample(nrow(shootings2_sub2), size=nrow(shootings2_sub2)*.75)
-
-# split train/test by 75/25
-# training set
-shootings_train <- shootings_rand[indices,]
-shootings_train %>% glimpse
-
-# testing set
-shootings_test <- shootings_rand[-indices,]
-shootings_test %>% glimpse
-
-## Break down the training data for each issue into posterior probabilities:
-## Invoke naiveBayes method
-shooting_nb <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-                            body_camera + season, data = shootings_rand)
-
-shooting_nb
-summary(shooting_nb)
-
-## Let's see how well our model predicts race:
-
-nb_test_predict <- predict(shooting_nb,shootings_test$race)
-#confusion matrix
-table(pred=nb_test_predict,true=shootings_test$race)
-#     true
-# pred   O   W
-# O      0   0
-# W    217 238
-
-## Fraction of correct predictions
-mean(nb_test_predict==shootings_test$race)
-# 0.5230769
-
-#20 runs, 80% of data randomly selected for training set in each run
-fraction_correct_predictions <- nb_multiple_runs(0.8,20)
-fraction_correct_predictions
-
-#summary of results
-summary(fraction_correct_predictions)
-# Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# 0.5417  0.5802  0.5944  0.5902  0.6003  0.6167 
-
-#standard deviation
-sd(fraction_correct_predictions)
-# 0.01809703
