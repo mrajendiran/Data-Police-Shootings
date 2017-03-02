@@ -18,14 +18,6 @@ suppressMessages({
 
 set.seed(12345)
 
-##     Classification Question       #############################################
-
-# Over the past two years, the use of deadly force by police against civilians has caused fiery national debate as citizens
-# and government agencies try to understand the motives and circumstances around such killings. Fatalities such as that of an unarmed
-# black teenager by a white police officer in Ferguson, Missouri have prompted the public to question if police shootings are racially
-# motivated. We intend to use the Washington Post police shooting database in order to determine if it is possible to classify a shooting event,
-# (given attributes recorded such as mental health, gender, etc.) based on race. We also extend this classification question to see if
-# a shooting event can be classified by what gender the victim is (male or female).
 
 ##     Loading & Processing Data     #############################################
 
@@ -74,7 +66,7 @@ shootings_gender %>% glimpse
 # count  <int> 81, 1878
 
 # Race
-shootings_complete %>%
+shootings2 %>%
   group_by(race) %>%
   summarise(count = n_distinct(id)) -> shootings_race
 shootings_race %>% glimpse
@@ -461,6 +453,14 @@ shootings2 %>%
 # with not having mental illnesses and summer
 
 
+##     Classification Question       #############################################
+
+# Over the past two years, the use of deadly force by police against civilians has caused fiery national debate as citizens
+# and government agencies try to understand the motives and circumstances around such killings. Fatalities such as that of an unarmed
+# black teenager by a white police officer in Ferguson, Missouri have prompted the public to question if police shootings are racially
+# motivated. We intend to use the Washington Post police shooting database in order to determine if it is possible to classify a shooting event,
+# (given attributes recorded such as mental health, gender, etc.) based on race. 
+
 #     Descriptive Analysis - Logistic Regression                           #########################
 
 # From our association rule mining we believe interesting trends pertaining to race may exist in our data. To statistically 
@@ -714,13 +714,13 @@ evaluate_Weka_classifier(rf_WO, numfolds=10)
 # to classify between genders very well. We continue our analysis into trying to classify by gender by further analyzing attributes
 
 
-# We examine classifying race based on whether the victim was armed with a gun (armedgun was significant in our logistic regression)
+# We examine classifying race based on armed status, age, mental illness status, and state of shooting
+# (attributes with at least one factor determined significant (p < 0.05) in our logistic regression model)
 
 shootings_binned %>%
-  filter(armed == "gun") -> s_gun
+  filter(armed == "gun") -> s_sig
 
-rf_WOg <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-             body_camera + season, data = s_gun)
+rf_WOg <- J48(race ~ armed + age + state + signs_of_mental_illness, data = s_sig)
 evaluate_Weka_classifier(rf_WOg, numfolds=10)
 
 # === Confusion Matrix ===
@@ -732,7 +732,7 @@ evaluate_Weka_classifier(rf_WOg, numfolds=10)
 # Accuracy O: 0.6236559 (up from 0.5869565)
 # Accuracy W: 0.3482587 (up from 0.2830882)
 
-# When considering just the population of those armed with guns, our overall accuracy slightly goes down by 1.45% but the accuracy
+# When this subset of the population, our overall accuracy slightly goes down by 1.45% but the accuracy
 # of classifying our individual classes goes up. Our accuracy for classifying Race='O' (Other) increases by 0.0366994 (3.6%) 
 # and our accuracy for classifying race='W' (White) increases by 0.0651705 (6.5%)
 
@@ -867,13 +867,13 @@ evaluate_Weka_classifier(rf_BWDownSample, numfolds=10)
 # that performs well. Our overall accuracy rate of 66.57% is misleading since every instance is classified as race='W' 
 
 
-# We examine classifying race based on whether the victim was armed with a gun (armedgun was significant in our logistic regression)
+# We examine classifying race based on armed status, age, mental illness status, and fleeing status 
+# (attributes with at least one factor determined significant (p < 0.05) in our logistic regression model)
 
 sampleBW %>%
-  filter(armed == "gun") -> s_gun
+  filter(armed == "gun") -> s_sig
 
-rf_WBg <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
-                body_camera + season, data = s_gun)
+rf_WBg <- J48(race ~ armed + age + signs_of_mental_illness + flee, data = s_sig)
 evaluate_Weka_classifier(rf_WBg, numfolds=10)
 
 # === Confusion Matrix ===
@@ -885,7 +885,7 @@ evaluate_Weka_classifier(rf_WBg, numfolds=10)
 # Accuracy O: 0.6236559 (up from 0.5869565)
 # Accuracy W: 0.3482587 (up from 0.2830882)
 
-# When considering just the population of those armed with guns, our overall accuracy slightly goes down by 1.45% but the accuracy
+# When considering this population, our overall accuracy slightly goes down by 1.45% but the accuracy
 # of classifying our individual classes goes up. Our accuracy for classifying Race='O' (Other) increases by 0.0366994 (3.6%) 
 # and our accuracy for classifying race='W' (White) increases by 0.0651705 (6.5%)
 
