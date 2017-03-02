@@ -656,6 +656,7 @@ table(pred=nb_test_predict,true=shootings_test$race)
 #    O   0   0   0   0   0   0
 #    W   7 116  78   5   7 242
 
+
 ## Fraction of correct predictions
 mean(nb_test_predict==shootings_test$race)
 # 0.5230769
@@ -775,7 +776,8 @@ table(pred=nb_test_predict,true=shootings_test$race)
 # pred   O   W
 # O      0   0
 # W    217 238
-
+sum(shootings_test$race == 'W')
+238/248
 ## Fraction of correct predictions
 mean(nb_test_predict==shootings_test$race)
 # 0.5230769
@@ -821,7 +823,7 @@ evaluate_Weka_classifier(rf_BW, numfolds=10)
 # 
 # === Confusion Matrix ===
 #   
-#   a   b   <-- classified as
+# a   b   <-- classified as
 # 0 475 |   a = B
 # 0 946 |   b = W
 
@@ -864,7 +866,7 @@ evaluate_Weka_classifier(rf_BWDownSample, numfolds=10)
 # 0 475 |   b = W
 
 # Subsetting our data to either race='W' or race='B' and then performing random forest classification does not produce a classifier
-# that performs well. Our overall accuracy rate of 66.57% is misleading since every instance is classified as race='W' 
+# that performs well. Our overall accuracy rate of 50% is misleading since every instance is classified as race='W' 
 
 
 # We examine classifying race based on armed status, age, mental illness status, and fleeing status 
@@ -918,7 +920,6 @@ shootings_test %>% glimpse
 shooting_nb <- naiveBayes(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
                             body_camera + season, data = shootings_rand)
 
-shooting_nb
 summary(shooting_nb)
 
 ## Let's see how well our model predicts race:
