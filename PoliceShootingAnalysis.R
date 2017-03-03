@@ -717,8 +717,7 @@ evaluate_Weka_classifier(rf_WO, numfolds=10)
 # Accuracy O: 0.5869565
 # Accuracy W: 0.782241
 
-# Even after binning races into two categories to handle the high disproportionality of race=W, our random forest classifier isn't able
-# to classify between genders very well. We continue our analysis into trying to classify by gender by further analyzing attributes
+# This classifier appears to be better than classifying among all six race categories but it still has a mediocre performance
 
 
 # We examine classifying race based on armed status, age, mental illness status, and state of shooting
