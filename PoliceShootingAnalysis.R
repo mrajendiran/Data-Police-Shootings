@@ -516,8 +516,11 @@ summary(s3.glm)
 # so we believe that this pairing is worth investigating separately as well)
 
 ####################################################################################################
-#     Race=W vs. Race=B, H, A, N, O                                        #########################
+
+#     Race=W vs. Race=B, H, A, N, O                    #############################################
+
 ####################################################################################################
+
 
 # select only necessary variables
 shootings2 %>%
@@ -559,7 +562,7 @@ evaluate_Weka_classifier(rf_all, numfolds=10)
 # Accuracy for O: 7/26     = 0.2692308
 # Accuracy for W: 794/946  = 0.8393235
 
-# Our random forests poor classify by race due to a disproportionate amount of distances belong to race=W
+# Our random forests poor classify by race due to a disproportionate amount of instances belong to race=W
 
 
 # Random classifier built with attributes identified as significant with our logistic regression model (armed)
@@ -695,8 +698,11 @@ sd(fraction_correct_predictions)
 # Our Naive Bayes classifier performs poorly as it classifies every instance as Race="W"
 
 ####################################################################################################
-#     Race=W vs. Race=O                                                    #########################
+
+#     Race=W vs. Race=O                                #############################################
+
 ####################################################################################################
+
 
 rf_WO <- J48(race ~ manner_of_death + armed + age + gender + state + signs_of_mental_illness + threat_level + flee +
              body_camera + season, data = shootings_binned)
@@ -799,8 +805,11 @@ sd(fraction_correct_predictions)
 
 
 ####################################################################################################
-#     Race=W vs. Race=B                                                    #########################
+
+#     Race=W vs. Race=B                                #############################################
+
 ####################################################################################################
+
 
 # Full shooting data pared down to race='B' and race='W' since those are the most populous races
 shootings2 %>%
@@ -950,6 +959,211 @@ sd(fraction_correct_predictions)
 # 0.01475072
 
 # Our Naive Bayes classifier performs poorly as it classifies every instance as Race="B"
+
+
+
+
+######################################################################################
+
+##     Mental Health Analysis            #############################################
+
+######################################################################################
+
+# total mental illness prevalence
+m <- shootings2[shootings2$signs_of_mental_illness == "TRUE",]
+465/1820
+# about a fourth of fatalities show signs of mental illness
+
+
+# mental illness female
+countfemale <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$gender == "F")
+count_total_female <- sum(shootings2$gender == "F")
+countfemale/count_total_female
+# 41%
+
+# mental illness male
+countmale <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$gender == "M")
+count_total_male <- sum(shootings2$gender == "M")
+countmale/count_total_male
+# 24.9%
+
+
+# mental illness white
+countwhite <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "W")
+count_total_white <- sum(shootings2$race == "W")
+countwhite/count_total_white
+# 32.1%
+
+# mental illness white female
+countwhitef <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "W" &
+                     shootings2$gender == "F")
+total_white_f <- sum(shootings2$race == "W" & shootings2$gender == "F")
+countwhitef/total_white_f
+# 46.8%
+
+# mental illness white male
+countwhitem <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "W" &
+                     shootings2$gender == "M")
+total_white_m <- sum(shootings2$race == "W" & shootings2$gender == "M")
+countwhitem/total_white_m
+# 31.4%
+# difference = 15.4%
+
+
+# mental illness black
+countblack <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "B")
+count_total_black <-  sum(shootings2$race == "B")
+countblack/count_total_black
+# 14.9%
+
+# mental illness black female
+countblackf <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "B" &
+                     shootings2$gender == "F")
+total_black_f <- sum(shootings2$race == "B" & shootings2$gender == "F")
+countblackf/total_black_f
+# 30%
+
+# mental illness black male
+countblackm <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "B" &
+                     shootings2$gender == "M")
+total_black_m <- sum(shootings2$race == "B" & shootings2$gender == "M")
+countblackm/total_black_m
+# 14.3%
+# difference = 15.7%
+
+
+# mental illness hispanic
+counthisp <-  sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "H")
+count_total_hisp <- sum(shootings2$race == "H")
+counthisp/count_total_hisp
+# 20.9%
+
+# mental illness hispanic female
+counthispf <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "H" &
+                    shootings2$gender == "F")
+total_hisp_f <- sum(shootings2$race == "H" & shootings2$gender == "F")
+counthispf/total_hisp_f
+# 25%
+
+# mental illness hispanic male
+counthispm <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "H" &
+                    shootings2$gender == "M")
+total_hisp_m <- sum(shootings2$race == "H" & shootings2$gender == "M")
+counthispm/total_hisp_m
+# 20.8%
+# difference = 4.2%
+
+
+# mental illness asian
+countasian <-  sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "A")
+count_total_asian <- sum(shootings2$race == "A")
+countasian/count_total_asian
+# 32.1%
+
+
+# No asian females in database
+
+
+# mental illness native american
+countn <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "N")
+count_total_n <- sum(shootings2$race == "N")
+countn/count_total_n
+# 29.2%
+
+# mental illness native american female
+countnf <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "N" &
+                 shootings2$gender == "F")
+total_n_f <- sum(shootings2$race == "N" & shootings2$gender == "F")
+countnf/total_n_f
+# 40%
+
+# mental illness native american male
+countnm <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "N" &
+                 shootings2$gender == "M")
+total_n_m <- sum(shootings2$race == "N" & shootings2$gender == "M")
+countnm/total_n_m
+# 26.3%
+# difference = 13.7%
+
+
+# mental illness other
+counto <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "O")
+count_total_o <- sum(shootings2$race == "O")
+counto/count_total_o
+# 26.9%
+
+# mental illness other female
+countof <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "O" &
+                 shootings2$gender == "F")
+total_o_f <- sum(shootings2$race == "O" & shootings2$gender == "F")
+countof/total_o_f
+# 50%
+
+# mental illness other male
+countom <- sum(shootings2$signs_of_mental_illness == "TRUE" & shootings2$race == "O" &
+                 shootings2$gender == "M")
+total_o_m <- sum(shootings2$race == "O" & shootings2$gender == "M")
+countom/total_o_m
+# 25%
+# difference = 25%
+
+
+# Threat level investigation
+stblack <- sum(shootings2$threat_level == "undetermined" & shootings2$race == "B" )
+black <- sum(shootings2$race == "B")
+stblack/black
+# 5.47%
+
+stwhite <- sum(shootings2$threat_level== "undetermined" & shootings2$race == "W" )
+white <- sum(shootings2$race == "W")
+stwhite/white
+# 7.1%
+
+
+# total killed black vs. white
+black <- sum(shootings2$race == "B")
+white <- sum(shootings2$race == "W")
+(475/37685848) * 100000
+# every 100,000 people, 1.26 blacks killed
+
+(946/196817552) * 100000
+# every 100,000 people, 0.481 whites killed
+
+
+# Classifying mental illness
+rf <- randomForest(formula = signs_of_mental_illness ~ age + manner_of_death +      gender + race + threat_level + flee + body_camera + armed,      data = shootings2, ntree = 49) 
+
+#Type of random forest: classification
+#Number of trees: 49
+#No. of variables tried at each split: 2
+
+#OOB estimate of  error rate: 25.82%
+#Confusion matrix:
+# FALSE TRUE class.error
+#FALSE  1314   41   0.0302583
+#TRUE    429   36   0.9225806
+
+# Not very good classification
+
+
+# downsampling
+
+w<- shootings2[shootings2$race == "W",]
+b <- shootings2[shootings2$race == "B",]
+
+w2 <- w[sample(1:nrow(w), 475,replace=FALSE),]
+
+sampleBW <- rbind(w, b)
+rf <- randomForest(formula = signs_of_mental_illness ~ age + manner_of_death +      gender + race + threat_level + flee + body_camera + armed,      data = sampleBW, ntree = 49) 
+rf
+
+#OOB estimate of  error rate: 26.6%
+#Confusion matrix:
+#      FALSE TRUE class.error
+#FALSE  1013   33  0.03154876
+#TRUE    345   30  0.92000000
+
+# Did not improve classification 
 
 
 ##     Appendix Code                     #############################################
